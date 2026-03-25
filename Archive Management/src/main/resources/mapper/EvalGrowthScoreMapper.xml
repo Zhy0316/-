@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.archivemanagement.mapper.EvalGrowthScoreMapper">
+
+    <!-- 查询某学生所有学期成长分 -->
+    <select id="selectByStudentId" resultType="com.example.archivemanagement.entity.EvalGrowthScore">
+        SELECT * FROM eval_growth_score
+        WHERE student_id = #{studentId}
+        ORDER BY term_year ASC
+    </select>
+
+    <!-- 全院成长分排行：取每个学生最新一条记录的 total_score -->
+    <select id="selectRanking" resultType="map">
+        SELECT
+            gs.student_id   AS studentId,
+            u.real_name     AS realName,
+            s.student_no    AS studentNo,
+            s.college       AS college,
+            s.major         AS major,
+            gs.total_score  AS totalScore,
+            gs.term_year    AS termYear
+        FROM eval_growth_score gs
+        INNER JOIN (
+            SELECT student_id, MAX(term_year) AS max_term
+            FROM eval_growth_score
+            GROUP BY student_id
+        ) latest ON gs.student_id = latest.student_id AND gs.term_year = latest.max_term
+        LEFT JOIN sys_user u ON u.user_id = gs.student_id
+        LEFT JOIN info_student s ON s.user_id = gs.student_id
+        ORDER BY gs.total_score DESC
+        LIMIT 100
+    </select>
+
+</mapper>

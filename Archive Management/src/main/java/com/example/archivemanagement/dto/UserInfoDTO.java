@@ -12,6 +12,8 @@ public class UserInfoDTO {
     private String roleKey;
     private String roleName;
     private LocalDateTime createTime;
+    /** 登录成功后返回的 JWT Token */
+    private String token;
 
     public Long getUserId() {
         return userId;
@@ -83,5 +85,13 @@ public class UserInfoDTO {
 
     public void setCreateTime(LocalDateTime createTime) {
         this.createTime = createTime;
+    }
+
+    public String getToken() {
+        return token;
+    }
+
+    public void setToken(String token) {
+        this.token = token;
     }
 }

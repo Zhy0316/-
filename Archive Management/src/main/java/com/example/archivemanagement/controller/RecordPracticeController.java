@@ -77,9 +77,6 @@ public class RecordPracticeController {
             return ResponseEntity.badRequest().body("更新失败");
         }
     }
-
-    /**
-     * 在线查看实习材料文件
      * @param id 实习材料ID
      * @return 文件内容
      */

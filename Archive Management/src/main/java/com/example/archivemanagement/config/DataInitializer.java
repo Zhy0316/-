@@ -35,119 +35,97 @@ public class DataInitializer implements CommandLineRunner {
         // 检查角色是否已存在
         QueryWrapper<SysRole> queryWrapper = new QueryWrapper<>();
         long count = roleMapper.selectCount(queryWrapper);
-        
+
         if (count == 0) {
-            // 初始化角色数据
-            SysRole studentRole = new SysRole();
-            studentRole.setRoleKey("student");
-            studentRole.setRoleName("学生");
-            studentRole.setDescription("学生用户");
-            roleMapper.insert(studentRole);
-            
-            SysRole tutorRole = new SysRole();
-            tutorRole.setRoleKey("tutor");
-            tutorRole.setRoleName("导师");
-            tutorRole.setDescription("导师用户");
-            roleMapper.insert(tutorRole);
-            
-            SysRole hrRole = new SysRole();
-            hrRole.setRoleKey("hr");
-            hrRole.setRoleName("企业HR");
-            hrRole.setDescription("企业人力资源用户");
-            roleMapper.insert(hrRole);
-            
+            createRole("student", "学生", "学生用户");
+            createRole("tutor", "导师", "导师用户");
+            createRole("hr", "企业HR", "企业人力资源用户");
+            createRole("admin", "管理员", "系统管理员");
             System.out.println("角色数据初始化完成");
         }
     }
+
+    private void createRole(String key, String name, String desc) {
+        SysRole role = new SysRole();
+        role.setRoleKey(key);
+        role.setRoleName(name);
+        role.setDescription(desc);
+        roleMapper.insert(role);
+    }
     
     private void initTestData() {
-        // 检查是否已有教师用户
+        // 初始化管理员账号
+        initAdminUser();
+        // 初始化测试导师数据
+        initTutorData();
+    }
+
+    private void initAdminUser() {
+        QueryWrapper<SysUser> adminQuery = new QueryWrapper<>();
+        adminQuery.eq("username", "admin");
+        if (userMapper.selectOne(adminQuery) != null) return;
+
+        QueryWrapper<SysRole> roleQuery = new QueryWrapper<>();
+        roleQuery.eq("role_key", "admin");
+        SysRole adminRole = roleMapper.selectOne(roleQuery);
+        if (adminRole == null) return;
+
+        SysUser admin = new SysUser();
+        admin.setUsername("admin");
+        admin.setPassword(encryptPassword("admin123"));
+        admin.setRealName("系统管理员");
+        admin.setStatus(1);
+        userMapper.insert(admin);
+
+        SysUserRole ur = new SysUserRole();
+        ur.setUserId(admin.getUserId());
+        ur.setRoleId(adminRole.getRoleId());
+        userRoleMapper.insert(ur);
+        System.out.println("管理员账号初始化完成，账号：admin / 密码：admin123");
+    }
+
+    private void initTutorData() {
+        // 检查是否已有导师用户
         QueryWrapper<SysUser> userQuery = new QueryWrapper<>();
         userQuery.eq("username", "tutor1");
-        SysUser existingUser = userMapper.selectOne(userQuery);
-        
-        if (existingUser == null) {
-            // 获取导师角色ID
-            QueryWrapper<SysRole> roleQuery = new QueryWrapper<>();
-            roleQuery.eq("role_key", "tutor");
-            SysRole tutorRole = roleMapper.selectOne(roleQuery);
-            
-            if (tutorRole != null) {
-                // 创建教师用户1
-                SysUser tutor1 = new SysUser();
-                tutor1.setUsername("tutor1");
-                tutor1.setPassword(encryptPassword("123456"));
-                tutor1.setRealName("张教授");
-                tutor1.setPhone("13800138001");
-                tutor1.setEmail("tutor1@example.com");
-                tutor1.setStatus(1);
-                userMapper.insert(tutor1);
-                
-                // 创建教师信息1
-                InfoTutor tutorInfo1 = new InfoTutor();
-                tutorInfo1.setUserId(tutor1.getUserId());
-                tutorInfo1.setTutorNo("T001");
-                tutorInfo1.setTitle("教授");
-                tutorInfo1.setResearchField("计算机科学与技术");
-                tutorMapper.insert(tutorInfo1);
-                
-                // 创建用户角色关联1
-                SysUserRole userRole1 = new SysUserRole();
-                userRole1.setUserId(tutor1.getUserId());
-                userRole1.setRoleId(tutorRole.getRoleId());
-                userRoleMapper.insert(userRole1);
-                
-                // 创建教师用户2
-                SysUser tutor2 = new SysUser();
-                tutor2.setUsername("tutor2");
-                tutor2.setPassword(encryptPassword("123456"));
-                tutor2.setRealName("李副教授");
-                tutor2.setPhone("13800138002");
-                tutor2.setEmail("tutor2@example.com");
-                tutor2.setStatus(1);
-                userMapper.insert(tutor2);
-                
-                // 创建教师信息2
-                InfoTutor tutorInfo2 = new InfoTutor();
-                tutorInfo2.setUserId(tutor2.getUserId());
-                tutorInfo2.setTutorNo("T002");
-                tutorInfo2.setTitle("副教授");
-                tutorInfo2.setResearchField("软件工程");
-                tutorMapper.insert(tutorInfo2);
-                
-                // 创建用户角色关联2
-                SysUserRole userRole2 = new SysUserRole();
-                userRole2.setUserId(tutor2.getUserId());
-                userRole2.setRoleId(tutorRole.getRoleId());
-                userRoleMapper.insert(userRole2);
-                
-                // 创建教师用户3
-                SysUser tutor3 = new SysUser();
-                tutor3.setUsername("tutor3");
-                tutor3.setPassword(encryptPassword("123456"));
-                tutor3.setRealName("王讲师");
-                tutor3.setPhone("13800138003");
-                tutor3.setEmail("tutor3@example.com");
-                tutor3.setStatus(1);
-                userMapper.insert(tutor3);
-                
-                // 创建教师信息3
-                InfoTutor tutorInfo3 = new InfoTutor();
-                tutorInfo3.setUserId(tutor3.getUserId());
-                tutorInfo3.setTutorNo("T003");
-                tutorInfo3.setTitle("讲师");
-                tutorInfo3.setResearchField("数据科学与大数据技术");
-                tutorMapper.insert(tutorInfo3);
-                
-                // 创建用户角色关联3
-                SysUserRole userRole3 = new SysUserRole();
-                userRole3.setUserId(tutor3.getUserId());
-                userRole3.setRoleId(tutorRole.getRoleId());
-                userRoleMapper.insert(userRole3);
-                
-                System.out.println("测试教师数据初始化完成");
-            }
-        }
+        if (userMapper.selectOne(userQuery) != null) return;
+
+        QueryWrapper<SysRole> roleQuery = new QueryWrapper<>();
+        roleQuery.eq("role_key", "tutor");
+        SysRole tutorRole = roleMapper.selectOne(roleQuery);
+        if (tutorRole == null) return;
+
+        createTutor("tutor1", "张教授", "13800138001", "tutor1@example.com",
+                "T001", "教授", "计算机科学与技术", tutorRole.getRoleId());
+        createTutor("tutor2", "李副教授", "13800138002", "tutor2@example.com",
+                "T002", "副教授", "软件工程", tutorRole.getRoleId());
+        createTutor("tutor3", "王讲师", "13800138003", "tutor3@example.com",
+                "T003", "讲师", "数据科学与大数据技术", tutorRole.getRoleId());
+        System.out.println("测试导师数据初始化完成");
+    }
+
+    private void createTutor(String username, String realName, String phone, String email,
+                              String tutorNo, String title, String field, Long roleId) {
+        SysUser user = new SysUser();
+        user.setUsername(username);
+        user.setPassword(encryptPassword("123456"));
+        user.setRealName(realName);
+        user.setPhone(phone);
+        user.setEmail(email);
+        user.setStatus(1);
+        userMapper.insert(user);
+
+        InfoTutor info = new InfoTutor();
+        info.setUserId(user.getUserId());
+        info.setTutorNo(tutorNo);
+        info.setTitle(title);
+        info.setResearchField(field);
+        tutorMapper.insert(info);
+
+        SysUserRole ur = new SysUserRole();
+        ur.setUserId(user.getUserId());
+        ur.setRoleId(roleId);
+        userRoleMapper.insert(ur);
     }
     
     private String encryptPassword(String password) {

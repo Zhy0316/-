@@ -35,4 +35,27 @@
     <delete id="deleteById">
         DELETE FROM record_academic WHERE id = #{id}
     </delete>
+
+    <!-- 全院每个学生的加权平均绩点（用于绩点分布统计） -->
+    <select id="selectAllStudentAvgGpa" resultType="map">
+        SELECT
+            student_id AS studentId,
+            ROUND(SUM(credit_gpa) / NULLIF(SUM(credit), 0), 2) AS avgGpa
+        FROM record_academic
+        WHERE is_invalidated = '否'
+        GROUP BY student_id
+    </select>
+
+    <!-- 按学年统计加权平均绩点，用于趋势图 -->
+    <select id="selectGpaTrendByStudentId" resultType="map">
+        SELECT
+            academic_year AS academicYear,
+            ROUND(SUM(credit_gpa) / NULLIF(SUM(credit), 0), 2) AS avgGpa,
+            SUM(credit) AS totalCredit
+        FROM record_academic
+        WHERE student_id = #{studentId}
+          AND is_invalidated = '否'
+        GROUP BY academic_year
+        ORDER BY academic_year ASC
+    </select>
 </mapper>

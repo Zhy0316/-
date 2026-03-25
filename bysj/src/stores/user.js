@@ -1,33 +1,54 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 
 export const useUserStore = defineStore('user', () => {
   const userInfo = ref(null)
-  const isLoggedIn = ref(false)
+  const token = ref(localStorage.getItem('token') || '')
 
-  const setUser = (user) => {
+  const isLoggedIn = computed(() => !!token.value)
+  const roleKey = computed(() => userInfo.value?.roleKey || '')
+
+  /** 登录成功后保存用户信息和 token */
+  const login = (user) => {
     userInfo.value = user
-    isLoggedIn.value = true
+    token.value = user.token
+    localStorage.setItem('token', user.token)
     localStorage.setItem('userInfo', JSON.stringify(user))
   }
 
-  const clearUser = () => {
+  /** 退出登录，清除所有状态 */
+  const logout = () => {
     userInfo.value = null
-    isLoggedIn.value = false
+    token.value = ''
+    localStorage.removeItem('token')
     localStorage.removeItem('userInfo')
   }
 
-  const loadUserFromStorage = () => {
-    const storedUser = localStorage.getItem('userInfo')
-    if (storedUser) {
-      userInfo.value = JSON.parse(storedUser)
-      isLoggedIn.value = true
+  /** 应用启动时从 localStorage 恢复状态 */
+  const loadFromStorage = () => {
+    const stored = localStorage.getItem('userInfo')
+    if (stored) {
+      try {
+        userInfo.value = JSON.parse(stored)
+      } catch {
+        logout()
+      }
     }
   }
 
+  // 兼容旧代码
+  const setUser = login
+  const clearUser = logout
+  const loadUserFromStorage = loadFromStorage
+
   return {
     userInfo,
+    token,
     isLoggedIn,
+    roleKey,
+    login,
+    logout,
+    loadFromStorage,
     setUser,
     clearUser,
     loadUserFromStorage
