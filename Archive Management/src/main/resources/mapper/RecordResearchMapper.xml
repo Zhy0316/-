@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.archivemanagement.mapper.RecordResearchMapper">
+
+    <select id="selectByStudentId" resultType="com.example.archivemanagement.entity.RecordResearch">
+        SELECT * FROM record_research
+        WHERE student_id = #{studentId}
+        ORDER BY start_date DESC
+    </select>
+
+    <select id="selectById" resultType="com.example.archivemanagement.entity.RecordResearch">
+        SELECT * FROM record_research
+        WHERE id = #{id}
+    </select>
+
+    <insert id="insert" parameterType="com.example.archivemanagement.entity.RecordResearch" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO record_research (
+            student_id, project_name, role, start_date, end_date, description, result_file
+        ) VALUES (
+            #{studentId}, #{projectName}, #{role}, #{startDate}, #{endDate}, #{description}, #{resultFile}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.example.archivemanagement.entity.RecordResearch">
+        UPDATE record_research
+        <set>
+            <if test="projectName != null">project_name = #{projectName},</if>
+            <if test="role != null">role = #{role},</if>
+            <if test="startDate != null">start_date = #{startDate},</if>
+            <if test="endDate != null">end_date = #{endDate},</if>
+            <if test="description != null">description = #{description},</if>
+            <if test="resultFile != null">result_file = #{resultFile}</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM record_research WHERE id = #{id}
+    </delete>
+</mapper>

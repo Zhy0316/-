@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.archivemanagement.mapper.RecordDiaryMapper">
+
+    <insert id="insert" parameterType="com.example.archivemanagement.entity.RecordDiary" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO record_diary (
+            student_id, title, content, mood, attachment_path, record_date, visibility
+        ) VALUES (
+            #{studentId}, #{title}, #{content}, #{mood}, #{attachmentPath}, #{recordDate}, #{visibility}
+        )
+    </insert>
+
+    <select id="selectByStudentIdAndDateRange" resultType="com.example.archivemanagement.entity.RecordDiary">
+        SELECT * FROM record_diary
+        WHERE student_id = #{studentId}
+        <if test="startDate != null">
+            AND record_date &gt;= #{startDate}
+        </if>
+        <if test="endDate != null">
+            AND record_date &lt;= #{endDate}
+        </if>
+        ORDER BY record_date DESC, create_time DESC
+    </select>
+    
+    <select id="selectById" resultType="com.example.archivemanagement.entity.RecordDiary">
+        SELECT * FROM record_diary WHERE id = #{id}
+    </select>
+    
+    <delete id="deleteById">
+        DELETE FROM record_diary WHERE id = #{id}
+    </delete>
+
+    <update id="update" parameterType="com.example.archivemanagement.entity.RecordDiary">
+        UPDATE record_diary 
+        <set>
+            <if test="title != null">title = #{title},</if>
+            <if test="content != null">content = #{content},</if>
+            <if test="mood != null">mood = #{mood},</if>
+            <if test="attachmentPath != null">attachment_path = #{attachmentPath},</if>
+            <if test="recordDate != null">record_date = #{recordDate},</if>
+            <if test="visibility != null">visibility = #{visibility}</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+</mapper>

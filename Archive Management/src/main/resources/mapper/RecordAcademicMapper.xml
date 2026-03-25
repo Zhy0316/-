@@ -1,0 +1,38 @@
+﻿<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.archivemanagement.mapper.RecordAcademicMapper">
+
+    <select id="selectByStudentId" resultType="com.example.archivemanagement.entity.RecordAcademic">
+        SELECT * FROM record_academic
+        WHERE student_id = #{studentId}
+        ORDER BY academic_year DESC
+    </select>
+
+    <insert id="insert" parameterType="com.example.archivemanagement.entity.RecordAcademic" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO record_academic (
+            student_id, academic_year, course_nature, course_name, credit, gpa, score, is_invalidated, credit_gpa
+        ) VALUES (
+            #{studentId}, #{academicYear}, #{courseNature}, #{courseName}, #{credit}, #{gpa}, #{score}, #{isInvalidated}, #{creditGpa}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.example.archivemanagement.entity.RecordAcademic">
+        UPDATE record_academic
+        <set>
+            <if test="academicYear != null">academic_year = #{academicYear},</if>
+            <if test="courseNature != null">course_nature = #{courseNature},</if>
+            <if test="courseName != null">course_name = #{courseName},</if>
+            <if test="credit != null">credit = #{credit},</if>
+            <if test="gpa != null">gpa = #{gpa},</if>
+            <if test="score != null">score = #{score},</if>
+            <if test="isInvalidated != null">is_invalidated = #{isInvalidated},</if>
+            <if test="creditGpa != null">credit_gpa = #{creditGpa}</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM record_academic WHERE id = #{id}
+    </delete>
+</mapper>

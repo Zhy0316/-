@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.archivemanagement.mapper.RecordPortfolioMapper">
+
+    <select id="selectByStudentId" resultType="com.example.archivemanagement.entity.RecordPortfolio">
+        SELECT * FROM record_portfolio
+        WHERE student_id = #{studentId}
+        ORDER BY upload_time DESC
+    </select>
+
+    <select id="selectById" resultType="com.example.archivemanagement.entity.RecordPortfolio">
+        SELECT * FROM record_portfolio
+        WHERE id = #{id}
+    </select>
+
+    <insert id="insert" parameterType="com.example.archivemanagement.entity.RecordPortfolio" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO record_portfolio (
+            student_id, title, work_type, description, file_url, cover_url, upload_time
+        ) VALUES (
+            #{studentId}, #{title}, #{workType}, #{description}, #{fileUrl}, #{coverUrl}, #{uploadTime}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.example.archivemanagement.entity.RecordPortfolio">
+        UPDATE record_portfolio
+        <set>
+            <if test="title != null">title = #{title},</if>
+            <if test="workType != null">work_type = #{workType},</if>
+            <if test="description != null">description = #{description},</if>
+            <if test="fileUrl != null">file_url = #{fileUrl},</if>
+            <if test="coverUrl != null">cover_url = #{coverUrl},</if>
+            <if test="uploadTime != null">upload_time = #{uploadTime}</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM record_portfolio WHERE id = #{id}
+    </delete>
+</mapper>

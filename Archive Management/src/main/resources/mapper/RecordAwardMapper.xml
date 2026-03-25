@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.archivemanagement.mapper.RecordAwardMapper">
+
+    <select id="selectByStudentId" resultType="com.example.archivemanagement.entity.RecordAward">
+        SELECT * FROM record_award
+        WHERE student_id = #{studentId}
+        ORDER BY award_date DESC
+    </select>
+
+    <select id="selectById" resultType="com.example.archivemanagement.entity.RecordAward">
+        SELECT * FROM record_award
+        WHERE id = #{id}
+    </select>
+
+    <insert id="insert" parameterType="com.example.archivemanagement.entity.RecordAward" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO record_award (
+            student_id, award_name, award_level, issuing_authority, award_date, description, cert_file, audit_status
+        ) VALUES (
+            #{studentId}, #{awardName}, #{awardLevel}, #{issuingAuthority}, #{awardDate}, #{description}, #{certFile}, #{auditStatus}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.example.archivemanagement.entity.RecordAward">
+        UPDATE record_award
+        <set>
+            <if test="awardName != null">award_name = #{awardName},</if>
+            <if test="awardLevel != null">award_level = #{awardLevel},</if>
+            <if test="issuingAuthority != null">issuing_authority = #{issuingAuthority},</if>
+            <if test="awardDate != null">award_date = #{awardDate},</if>
+            <if test="description != null">description = #{description},</if>
+            <if test="certFile != null">cert_file = #{certFile},</if>
+            <if test="auditStatus != null">audit_status = #{auditStatus}</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM record_award WHERE id = #{id}
+    </delete>
+</mapper>

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.archivemanagement.mapper.StudentTutorRelationMapper">
+
+    <insert id="insert" parameterType="com.example.archivemanagement.entity.StudentTutorRelation">
+        INSERT INTO student_tutor_relation (student_id, tutor_id, status, apply_time)
+        VALUES (#{studentId}, #{tutorId}, #{status}, #{applyTime})
+    </insert>
+
+    <update id="update" parameterType="com.example.archivemanagement.entity.StudentTutorRelation">
+        UPDATE student_tutor_relation
+        SET status = #{status},
+            audit_time = #{auditTime}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM student_tutor_relation WHERE id = #{id}
+    </delete>
+
+    <select id="selectById" resultType="com.example.archivemanagement.entity.StudentTutorRelation">
+        SELECT * FROM student_tutor_relation WHERE id = #{id}
+    </select>
+
+    <select id="selectByStudentAndTutor" resultType="com.example.archivemanagement.entity.StudentTutorRelation">
+        SELECT * FROM student_tutor_relation WHERE student_id = #{studentId} AND tutor_id = #{tutorId}
+    </select>
+
+    <select id="selectByStudentId" resultType="com.example.archivemanagement.entity.StudentTutorRelation">
+        SELECT * FROM student_tutor_relation WHERE student_id = #{studentId}
+    </select>
+
+    <select id="selectByTutorId" resultType="com.example.archivemanagement.entity.StudentTutorRelation">
+        SELECT * FROM student_tutor_relation WHERE tutor_id = #{tutorId}
+    </select>
+
+    <select id="selectByTutorIdAndStatus" resultType="com.example.archivemanagement.entity.StudentTutorRelation">
+        SELECT * FROM student_tutor_relation WHERE tutor_id = #{tutorId} AND status = #{status}
+    </select>
+
+    <select id="selectByStudentIdAndStatus" resultType="com.example.archivemanagement.entity.StudentTutorRelation">
+        SELECT * FROM student_tutor_relation WHERE student_id = #{studentId} AND status = #{status}
+    </select>
+
+</mapper>
