@@ -4,20 +4,21 @@ import com.alibaba.excel.EasyExcel;
 import com.alibaba.excel.context.AnalysisContext;
 import com.alibaba.excel.read.listener.ReadListener;
 import com.alibaba.excel.util.ListUtils;
-import org.springframework.web.multipart.MultipartFile;
 import com.example.archivemanagement.entity.RecordAcademic;
 import com.example.archivemanagement.mapper.RecordAcademicMapper;
 import com.example.archivemanagement.service.RecordAcademicService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.math.BigDecimal;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 @Service
-public class RecordAcademicServiceImpl implements RecordAcademicService {       
+public class RecordAcademicServiceImpl implements RecordAcademicService {
 
     @Autowired
     private RecordAcademicMapper mapper;
@@ -52,40 +53,36 @@ public class RecordAcademicServiceImpl implements RecordAcademicService {
             private List<RecordAcademic> cachedDataList = ListUtils.newArrayListWithExpectedSize(BATCH_COUNT);
 
             @Override
-            public void invokeHead(Map<Integer, com.alibaba.excel.metadata.data.ReadCellData<?>> headMap, AnalysisContext context) {
+            public void invokeHead(Map<Integer, com.alibaba.excel.metadata.data.ReadCellData<?>> headMap,
+                                   AnalysisContext context) {
                 System.out.println("解析到表头: " + headMap);
             }
 
             @Override
             public void invoke(RecordAcademic data, AnalysisContext context) {
-                System.out.println("读取到一行数据: " + data);
-                // 不再进行非空拦截，看看能读出什么
+                // 全空行跳过
                 if (data.getAcademicYear() == null && data.getCourseName() == null && data.getScore() == null) {
-                    return; // 全是空的不存
+                    return;
                 }
-                
-                // 给必填字段赋默认值避免数据库报错
-                if(data.getCourseName() == null) data.setCourseName("未命名课程");
-                if(data.getAcademicYear() == null) data.setAcademicYear("未知学年");
-                if(data.getCourseNature() == null) data.setCourseNature("必修");
-                if(data.getCredit() == null) data.setCredit(new BigDecimal(0));
-                if(data.getGpa() == null && data.getScore() != null) {
-                    // 计算绩点
+                // 必填字段默认值
+                if (data.getCourseName() == null) data.setCourseName("未命名课程");
+                if (data.getAcademicYear() == null) data.setAcademicYear("未知学年");
+                if (data.getCourseNature() == null) data.setCourseNature("必修");
+                if (data.getCredit() == null) data.setCredit(BigDecimal.ZERO);
+                // 自动计算绩点
+                if (data.getGpa() == null && data.getScore() != null) {
                     try {
                         double score = Double.parseDouble(data.getScore());
-                        double gpa = calculateGpa(score);
-                        data.setGpa(new BigDecimal(gpa));
+                        data.setGpa(new BigDecimal(calculateGpa(score)));
                     } catch (NumberFormatException e) {
-                        data.setGpa(new BigDecimal(0));
+                        data.setGpa(BigDecimal.ZERO);
                     }
                 }
-                if(data.getIsInvalidated() == null) data.setIsInvalidated("否");
-                
+                if (data.getIsInvalidated() == null) data.setIsInvalidated("否");
                 // 计算学分绩点
-                if(data.getCredit() != null && data.getGpa() != null) {
+                if (data.getCredit() != null && data.getGpa() != null) {
                     data.setCreditGpa(data.getCredit().multiply(data.getGpa()));
                 }
-                
                 data.setStudentId(studentId);
                 cachedDataList.add(data);
                 if (cachedDataList.size() >= BATCH_COUNT) {
@@ -100,21 +97,33 @@ public class RecordAcademicServiceImpl implements RecordAcademicService {
             }
 
             private void saveData() {
-                if (!cachedDataList.isEmpty()) {
-                    for (RecordAcademic record : cachedDataList) {
-                        try {
-                            mapper.insert(record);
-                            importedCount[0]++;
-                        } catch (Exception e) {
-                            System.err.println("插入失败: " + e.getMessage());
-                        }
+                for (RecordAcademic record : cachedDataList) {
+                    try {
+                        mapper.insert(record);
+                        importedCount[0]++;
+                    } catch (Exception e) {
+                        System.err.println("插入失败: " + e.getMessage());
                     }
                 }
+                cachedDataList.clear();
             }
         }).sheet().doRead();
         return importedCount[0];
     }
-    
+
+    @Override
+    public byte[] exportToExcel(Long studentId) throws IOException {
+        List<RecordAcademic> list = mapper.selectByStudentId(studentId);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        EasyExcel.write(out, RecordAcademic.class).sheet("成绩单").doWrite(list);
+        return out.toByteArray();
+    }
+
+    @Override
+    public List<Map<String, Object>> getGpaTrend(Long studentId) {
+        return mapper.selectGpaTrendByStudentId(studentId);
+    }
+
     private double calculateGpa(double score) {
         if (score >= 90) return 4.0;
         if (score >= 85) return 3.7;

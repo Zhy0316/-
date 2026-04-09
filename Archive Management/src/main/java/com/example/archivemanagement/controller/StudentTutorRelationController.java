@@ -1,66 +1,56 @@
 package com.example.archivemanagement.controller;
 
+import com.example.archivemanagement.common.BusinessException;
+import com.example.archivemanagement.common.Result;
+import com.example.archivemanagement.entity.StudentTutorRelation;
 import com.example.archivemanagement.service.StudentTutorRelationService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
 @RequestMapping("/api/relation")
+@RequiredArgsConstructor
 public class StudentTutorRelationController {
 
-    @Autowired
-    private StudentTutorRelationService service;
+    private final StudentTutorRelationService service;
 
     @PostMapping("/apply")
-    public ResponseEntity<?> applyForTutor(@RequestBody Map<String, Long> request) {
+    public Result<Void> applyForTutor(@RequestBody Map<String, Long> request) {
         Long studentId = request.get("studentId");
         Long tutorId = request.get("tutorId");
-
-        if (studentId == null || tutorId == null) {
-            return ResponseEntity.badRequest().body("参数错误");
-        }
-
-        boolean result = service.applyForTutor(studentId, tutorId);
-        if (result) {
-            return ResponseEntity.ok("申请成功");
-        } else {
-            return ResponseEntity.badRequest().body("申请失败，可能已经存在绑定关系");
-        }
+        if (studentId == null || tutorId == null) throw new BusinessException("参数错误");
+        if (!service.applyForTutor(studentId, tutorId)) throw new BusinessException("申请失败，已存在绑定关系");
+        return Result.ok("申请成功");
     }
 
     @PutMapping("/audit")
-    public ResponseEntity<?> auditRelation(@RequestBody Map<String, Object> request) {
+    public Result<Void> auditRelation(@RequestBody Map<String, Object> request) {
         Long id = Long.parseLong(request.get("id").toString());
         Integer status = Integer.parseInt(request.get("status").toString());
-
-        boolean result = service.auditRelation(id, status);
-        if (result) {
-            return ResponseEntity.ok("审核成功");
-        } else {
-            return ResponseEntity.badRequest().body("审核失败");
-        }
+        if (!service.auditRelation(id, status)) throw new BusinessException("审核失败");
+        return Result.ok("审核成功");
     }
 
     @GetMapping("/student/{studentId}")
-    public ResponseEntity<?> getStudentRelations(@PathVariable Long studentId) {
-        return ResponseEntity.ok(service.getStudentRelations(studentId));
+    public Result<List<StudentTutorRelation>> getStudentRelations(@PathVariable Long studentId) {
+        return Result.ok(service.getStudentRelations(studentId));
     }
 
     @GetMapping("/tutor/{tutorId}")
-    public ResponseEntity<?> getTutorRelations(@PathVariable Long tutorId) {
-        return ResponseEntity.ok(service.getTutorRelations(tutorId));
+    public Result<List<StudentTutorRelation>> getTutorRelations(@PathVariable Long tutorId) {
+        return Result.ok(service.getTutorRelations(tutorId));
     }
 
     @GetMapping("/tutor/{tutorId}/pending")
-    public ResponseEntity<?> getTutorPendingRelations(@PathVariable Long tutorId) {
-        return ResponseEntity.ok(service.getTutorPendingRelations(tutorId));
+    public Result<List<StudentTutorRelation>> getTutorPendingRelations(@PathVariable Long tutorId) {
+        return Result.ok(service.getTutorPendingRelations(tutorId));
     }
 
     @GetMapping("/student/{studentId}/pending")
-    public ResponseEntity<?> getStudentPendingRelations(@PathVariable Long studentId) {
-        return ResponseEntity.ok(service.getStudentPendingRelations(studentId));
+    public Result<List<StudentTutorRelation>> getStudentPendingRelations(@PathVariable Long studentId) {
+        return Result.ok(service.getStudentPendingRelations(studentId));
     }
 }

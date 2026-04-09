@@ -151,7 +151,12 @@ public class RecordPortfolioController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deletePortfolio(@PathVariable Long id) {
+    public ResponseEntity<?> deletePortfolio(@PathVariable Long id,
+                                             jakarta.servlet.http.HttpServletRequest request) {
+        Long callerId = (Long) request.getAttribute("userId");
+        RecordPortfolio portfolio = service.getById(id);
+        if (portfolio == null) return ResponseEntity.status(404).body("作品不存在");
+        if (!portfolio.getStudentId().equals(callerId)) return ResponseEntity.status(403).body("无权删除他人作品");
         service.removeById(id);
         return ResponseEntity.ok().build();
     }

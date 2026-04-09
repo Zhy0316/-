@@ -9,90 +9,199 @@
     </div>
 
     <div class="content-area" v-show="activeTab === 'diary'">
-      <!-- 左侧侧边栏：筛选和历史记录 -->
+      <!-- 左侧：筛选 + 新建入口 -->
       <div class="sidebar">
+
+        <!-- 新建日志按钮 -->
+        <div class="section-card filter-card" style="padding:12px">
+          <el-button type="primary" style="width:100%" @click="startNew">
+            ✏️ 新建日志
+          </el-button>
+        </div>
+
+        <!-- 搜索框 -->
         <div class="section-card filter-card">
-          <h4>筛选历史记录</h4>
-          <div style="display: flex; gap: 10px; align-items: center; margin-top: 15px;">
-            <el-date-picker
-              v-model="dateRange"
-              type="daterange"
-              range-separator="至"
-              start-placeholder="开始日期"
-              end-placeholder="结束日期"
-              value-format="YYYY-MM-DD"
-              @change="fetchRecords"
-            >
-            </el-date-picker>
-            <el-button @click="resetFilter">重置</el-button>
+          <el-input v-model="filterKeyword" placeholder="搜索标题/内容" clearable @input="applyFilter">
+            <template #prefix><el-icon><Search /></el-icon></template>
+          </el-input>
+        </div>
+
+        <!-- 快捷筛选 -->
+        <div class="section-card filter-card">
+          <div class="filter-group">
+            <div class="filter-item" :class="{ active: activeFilter === 'all' }" @click="setFilter('all')">
+              📋 全部日志 <span class="count">{{ records.length }}</span>
+            </div>
+            <div class="filter-item" :class="{ active: activeFilter === 'starred' }" @click="setFilter('starred')">
+              ⭐ 星标日志 <span class="count">{{ records.filter(r=>r.isStarred===1).length }}</span>
+            </div>
           </div>
         </div>
 
+        <!-- 分组 -->
+        <div class="section-card filter-card">
+          <div class="filter-section-title">
+            <span>📁 分组</span>
+            <el-button size="small" text type="primary" @click="showAddCategory = true">+ 新建</el-button>
+          </div>
+          <div class="filter-group">
+            <div v-for="cat in categories" :key="cat"
+              class="filter-item" :class="{ active: activeCategory === cat }"
+              @click="setCategory(cat)">
+              {{ cat }}
+            </div>
+            <div v-if="!categories.length" style="color:#c0c4cc;font-size:12px;padding:4px 0">暂无分组</div>
+          </div>
+          <div v-if="showAddCategory" style="margin-top:8px;display:flex;gap:6px">
+            <el-input v-model="newCategoryName" size="small" placeholder="分组名称" @keyup.enter="addCategory" />
+            <el-button size="small" type="primary" @click="addCategory">确定</el-button>
+            <el-button size="small" @click="showAddCategory=false;newCategoryName=''">取消</el-button>
+          </div>
+        </div>
+
+        <!-- 标签云 -->
+        <div class="section-card filter-card">
+          <div class="filter-section-title"><span>🏷️ 标签</span></div>
+          <div class="tag-cloud">
+            <el-tag v-for="tag in allTags" :key="tag"
+              :type="activeTag === tag ? 'primary' : 'info'"
+              size="small" style="cursor:pointer;margin:3px"
+              @click="setTag(tag)">{{ tag }}</el-tag>
+            <span v-if="!allTags.length" style="color:#c0c4cc;font-size:12px">暂无标签</span>
+          </div>
+        </div>
+
+        <!-- 历史日志列表 -->
         <div class="section-card">
-          <h4>历史日志</h4>
-          <div class="timeline" v-if="records.length > 0">
-            <div class="timeline-item" v-for="record in records" :key="record.id">
+          <h4 style="margin:0 0 10px 0">历史日志</h4>
+          <div class="timeline" v-if="filteredRecords.length > 0">
+            <div class="timeline-item" v-for="record in filteredRecords" :key="record.id"
+              :class="{ 'timeline-active': currentRecord?.id === record.id && !editingId }"
+              @click="openDetail(record)">
               <div class="date">{{ formatDate(record.recordDate || record.createTime) }}</div>
               <div class="content list-content">
-                <h5 @click="openDetail(record)" class="clickable-title">{{ record.title }}</h5>
+                <h5 class="clickable-title">
+                  <span v-if="record.isStarred === 1" style="color:#f5a623">⭐</span>
+                  {{ record.title }}
+                </h5>
+                <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">
+                  <el-tag v-if="record.category" size="small" type="warning">{{ record.category }}</el-tag>
+                  <el-tag v-for="t in parseTags(record.tags)" :key="t" size="small" type="info">{{ t }}</el-tag>
+                  <el-tag size="small" :type="record.visibility === 1 ? 'success' : ''">
+                    {{ record.visibility === 1 ? '公开' : '私密' }}
+                  </el-tag>
+                </div>
               </div>
             </div>
           </div>
-          <el-empty v-else description="暂无历史日志" />
+          <el-empty v-else description="暂无日志" :image-size="60" />
         </div>
       </div>
 
-      <!-- 右侧：新建成长日志 -->
+      <!-- 右侧：日志详情 / 编辑器 -->
       <div class="main-content">
-        <div class="section-card">
-          <div class="card-header">
-            <h4>新建成长日志</h4>
+
+        <!-- 编辑器（新建 or 编辑） -->
+        <div v-if="editingId !== null" class="section-card diary-editor-card">
+          <div class="card-header" style="margin-bottom:16px">
+            <h4 style="margin:0">{{ editingId === 0 ? '新建日志' : '编辑日志' }}</h4>
+            <el-button size="small" @click="cancelEdit">取消</el-button>
           </div>
-          <div class="journal-editor">
-            <input type="text" class="journal-title" v-model="form.title" placeholder="请输入日志标题" />
-            <input type="text" class="journal-title" v-model="form.mood" placeholder="心情标签，如：#开心" style="margin-top: 10px;"/>
-            <div class="editor-toolbar" style="margin-top: 10px;">
-              <button @click.prevent="triggerFileInput">📎 选择附件</button>
-              <span v-if="selectedFile" style="font-size: 12px; color: #666; margin-left: 10px;">已选择: {{ selectedFile.name }}</span>
-              <input type="file" ref="fileInput" @change="handleFileChange" style="display: none;" />
-            </div>
-            <div
-              ref="editor"
-              contenteditable="true"
-              class="rich-editor"
-              placeholder="记录今天的学习感悟..."
-              @paste="handlePaste"
-            ></div>
-            <div class="journal-actions">
-              <button class="submit-btn" @click="submitRecord">发布日志</button>
-              <button class="draft-btn" @click="clearForm">取消</button>
-            </div>
+
+          <input type="text" class="journal-title" v-model="form.title" placeholder="日志标题（必填）" />
+
+          <el-row :gutter="12" style="margin-top:12px">
+            <el-col :span="8">
+              <el-input v-model="form.mood" placeholder="心情，如：#开心" size="small" />
+            </el-col>
+            <el-col :span="8">
+              <el-select v-model="form.category" placeholder="选择分组" size="small" clearable
+                style="width:100%" allow-create filterable>
+                <el-option v-for="cat in categories" :key="cat" :label="cat" :value="cat" />
+              </el-select>
+            </el-col>
+            <el-col :span="8">
+              <el-select v-model="form.tagList" placeholder="添加标签" size="small" multiple clearable
+                style="width:100%" allow-create filterable>
+                <el-option v-for="tag in allTags" :key="tag" :label="tag" :value="tag" />
+              </el-select>
+            </el-col>
+          </el-row>
+
+          <el-row :gutter="12" style="margin-top:10px;align-items:center">
+            <el-col :span="14">
+              <el-radio-group v-model="form.visibility" size="small">
+                <el-radio :value="1">导师可见</el-radio>
+                <el-radio :value="0">仅自己可见</el-radio>
+              </el-radio-group>
+            </el-col>
+            <el-col :span="10">
+              <el-checkbox v-model="form.isStarred" :true-value="1" :false-value="0">⭐ 星标</el-checkbox>
+            </el-col>
+          </el-row>
+
+          <!-- wangEditor 富文本编辑器 -->
+          <WangEditor
+            ref="wangEditorRef"
+            v-model="form.htmlContent"
+            height="380px"
+            style="margin-top:14px"
+          />
+
+          <!-- 附件上传 -->
+          <div style="margin-top:10px;display:flex;align-items:center;gap:10px">
+            <el-button size="small" plain @click="triggerFileInput">📎 选择附件</el-button>
+            <span v-if="selectedFile" style="font-size:12px;color:#666">{{ selectedFile.name }}</span>
+            <input type="file" ref="fileInput" @change="handleFileChange" style="display:none" />
+          </div>
+
+          <div class="journal-actions" style="margin-top:16px">
+            <el-button type="primary" @click="submitRecord">{{ editingId === 0 ? '发布日志' : '保存修改' }}</el-button>
+            <el-button @click="cancelEdit">取消</el-button>
           </div>
         </div>
+
+        <!-- 日志详情 -->
+        <div v-else-if="currentRecord" class="section-card diary-detail-card">
+          <div class="diary-detail-header">
+            <div>
+              <h2 style="margin:0 0 8px 0">
+                <span v-if="currentRecord.isStarred === 1" style="color:#f5a623;margin-right:6px">⭐</span>
+                {{ currentRecord.title }}
+              </h2>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+                <span style="color:#909399;font-size:13px">{{ formatDate(currentRecord.recordDate || currentRecord.createTime) }}</span>
+                <el-tag v-if="currentRecord.mood" size="small">{{ currentRecord.mood }}</el-tag>
+                <el-tag v-if="currentRecord.category" size="small" type="warning">{{ currentRecord.category }}</el-tag>
+                <el-tag v-for="t in parseTags(currentRecord.tags)" :key="t" size="small" type="info">{{ t }}</el-tag>
+                <el-tag size="small" :type="currentRecord.visibility === 1 ? 'success' : ''">
+                  {{ currentRecord.visibility === 1 ? '导师可见' : '私密' }}
+                </el-tag>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;flex-shrink:0">
+              <el-button size="small" :type="currentRecord.isStarred === 1 ? 'warning' : ''"
+                @click="toggleStar(currentRecord)">
+                {{ currentRecord.isStarred === 1 ? '⭐ 取消星标' : '☆ 加星标' }}
+              </el-button>
+              <el-button size="small" type="primary" @click="openEdit(currentRecord)">编辑</el-button>
+              <el-button size="small" type="danger" @click="deleteDiary(currentRecord.id)">删除</el-button>
+            </div>
+          </div>
+          <el-divider />
+          <div class="diary-body" v-html="currentRecord.content"></div>
+          <div v-if="currentRecord.attachmentPath" class="detail-attachment">
+            <a :href="getAttachmentUrl(currentRecord.attachmentPath)" target="_blank">📎 查看 / 下载附件</a>
+          </div>
+        </div>
+
+        <!-- 空状态 -->
+        <div v-else class="section-card" style="text-align:center;padding:80px 20px">
+          <el-empty description="从左侧选择日志查看，或点击「新建日志」开始写作" />
+        </div>
+
       </div>
     </div>
-
-      <!-- Detail Dialog -->
-      <el-dialog v-model="detailVisible" :title="currentRecord?.title" width="50%">
-        <div v-if="currentRecord" class="record-detail">
-          <div class="detail-meta">
-            发布于: {{ formatDate(currentRecord.recordDate || currentRecord.createTime) }}
-            <span v-if="currentRecord.mood" class="detail-mood">心情: {{ currentRecord.mood }}</span>
-          </div>
-          <div class="detail-body" v-html="currentRecord.content">
-          </div>
-          <div v-if="currentRecord.attachmentPath" class="detail-attachment">
-            <a :href="getAttachmentUrl(currentRecord.attachmentPath)" target="_blank">
-              📎 查看 / 下载附件
-            </a>
-          </div>
-        </div>
-        <template #footer>
-          <span class="dialog-footer">
-            <el-button @click="detailVisible = false">关闭</el-button>
-          </span>
-        </template>
-      </el-dialog>
 
     <!-- 作品集部分 -->
     <div v-show="activeTab === 'portfolio'">
@@ -364,84 +473,120 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, defineComponent } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, watch, defineComponent, nextTick } from 'vue';
 import { useUserStore } from '@/stores/user';
 import { getDiaries, createDiary } from '@/services/diary';
 import { getPortfolios, addPortfolio, deletePortfolio as deletePortfolioApi, downloadPortfolio } from '@/services/portfolio';
-import { ElMessage, ElMessageBox, ElEditor } from 'element-plus';
+import { api } from '@/services/api';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { Search } from '@element-plus/icons-vue';
+import WangEditor from '@/components/WangEditor.vue';
 
 // 文件树节点组件
-const FileTreeItem = {
+const FileTreeItem = defineComponent({
   name: 'FileTreeItem',
   props: {
-    node: {
-      type: Object,
-      required: true
-    },
-    level: {
-      type: Number,
-      default: 0
-    }
+    node: { type: Object, required: true },
+    level: { type: Number, default: 0 }
   },
-  methods: {
-    toggleExpand(node) {
-      if (node.type === 'folder') {
-        node.expanded = !node.expanded;
-      }
-    },
-    getFileIcon(extension) {
-      const icons = {
-        'js': '📄', 'vue': '📄', 'html': '🌐', 'css': '🎨', 'scss': '🎨',
-        'md': '📝', 'json': '📋', 'xml': '📋', 'txt': '📄',
-        'jpg': '🖼️', 'png': '🖼️', 'jpeg': '🖼️', 'gif': '🎞️',
-        'pdf': '📕', 'doc': '📘', 'docx': '📘', 'xlsx': '📗',
-        'zip': '📦', 'rar': '📦', '7z': '📦',
-        'exe': '⚙️', 'dll': '⚙️', 'bat': '⚙️', 'sh': '⚙️',
-        'py': '🐍', 'java': '☕', 'cpp': '💻', 'c': '💻', 'h': '💻',
-        'sql': '🗄️', 'db': '🗄️', 'sqlite': '🗄️',
-        'default': '📄'
-      };
-      return icons[extension] || icons.default;
-    }
+  setup(props) {
+    const fileIcons = {
+      'js': '📄', 'vue': '📄', 'html': '🌐', 'css': '🎨', 'scss': '🎨',
+      'md': '📝', 'json': '📋', 'xml': '📋', 'txt': '📄',
+      'jpg': '🖼️', 'png': '🖼️', 'jpeg': '🖼️', 'gif': '🎞️',
+      'pdf': '📕', 'doc': '📘', 'docx': '📘', 'xlsx': '📗',
+      'zip': '📦', 'rar': '📦', '7z': '📦',
+      'py': '🐍', 'java': '☕', 'cpp': '💻', 'c': '💻', 'h': '💻',
+      'sql': '🗄️', 'db': '🗄️', 'default': '📄'
+    };
+    const toggleExpand = (node) => { if (node.type === 'folder') node.expanded = !node.expanded; };
+    const getFileIcon = (ext) => fileIcons[ext] || fileIcons.default;
+    return { toggleExpand, getFileIcon };
   },
   template: `
     <div class="file-tree-node" :style="{ paddingLeft: level * 20 + 'px' }">
       <div class="file-tree-item" @click="toggleExpand(node)">
-        <span class="tree-icon">
-          {{ node.type === 'folder' ? (node.expanded ? '▼' : '▶') : '' }}
-        </span>
-        <span class="file-icon">
-          {{ node.type === 'folder' ? '📁' : getFileIcon(node.extension) }}
-        </span>
+        <span class="tree-icon">{{ node.type === 'folder' ? (node.expanded ? '▼' : '▶') : '' }}</span>
+        <span class="file-icon">{{ node.type === 'folder' ? '📁' : getFileIcon(node.extension) }}</span>
         <span class="file-name">{{ node.name }}</span>
       </div>
       <div v-if="node.type === 'folder' && node.expanded && node.children" class="file-tree-children">
-        <file-tree-item 
-          v-for="child in node.children" 
-          :key="child.name" 
-          :node="child" 
-          :level="level + 1" 
-        />
+        <file-tree-item v-for="child in node.children" :key="child.name" :node="child" :level="level + 1" />
       </div>
     </div>
   `
-};
+});
 
 const userStore = useUserStore();
 const activeTab = ref('diary');
 
+// ===== 日记相关状态 =====
 const records = ref([]);
-const dateRange = ref([]);
+const allTags = ref([]);
+const categories = ref([]);
 const fileInput = ref(null);
 const selectedFile = ref(null);
 const editor = ref(null);
+const editingId = ref(null);
+const currentRecord = ref(null);
+
+// wangEditor
+const wangEditorRef = ref(null);
+
+// 筛选状态
+const filterKeyword = ref('');
+const activeFilter = ref('all');   // 'all' | 'starred'
+const activeCategory = ref('');
+const activeTag = ref('');
+
+// 分组管理
+const showAddCategory = ref(false);
+const newCategoryName = ref('');
 
 const form = ref({
   title: '',
   content: '',
   mood: '',
+  visibility: 1,
+  isStarred: 0,
+  category: '',
+  tagList: [],   // 前端用数组，提交时转逗号字符串
   recordDate: new Date().toISOString().split('T')[0],
 });
+
+// 筛选后的日记列表
+const filteredRecords = computed(() => {
+  let list = records.value;
+  if (activeFilter.value === 'starred') list = list.filter(r => r.isStarred === 1);
+  if (activeCategory.value) list = list.filter(r => r.category === activeCategory.value);
+  if (activeTag.value) list = list.filter(r => parseTags(r.tags).includes(activeTag.value));
+  if (filterKeyword.value) {
+    const kw = filterKeyword.value.toLowerCase();
+    list = list.filter(r => r.title?.toLowerCase().includes(kw) || r.content?.toLowerCase().includes(kw));
+  }
+  return list;
+});
+
+const parseTags = (tagsStr) => {
+  if (!tagsStr) return [];
+  return tagsStr.split(',').map(t => t.trim()).filter(Boolean);
+};
+
+const setFilter = (f) => { activeFilter.value = f; activeCategory.value = ''; activeTag.value = ''; };
+const setCategory = (cat) => { activeCategory.value = activeCategory.value === cat ? '' : cat; activeFilter.value = 'all'; activeTag.value = ''; };
+const setTag = (tag) => { activeTag.value = activeTag.value === tag ? '' : tag; activeFilter.value = 'all'; activeCategory.value = ''; };
+const applyFilter = () => {}; // computed 自动响应
+
+const addCategory = () => {
+  const name = newCategoryName.value.trim();
+  if (!name) return;
+  if (!categories.value.includes(name)) categories.value.push(name);
+  showAddCategory.value = false;
+  newCategoryName.value = '';
+};
+
+const triggerFileInput = () => { fileInput.value.click(); };
+const handleFileChange = (e) => { if (e.target.files.length > 0) selectedFile.value = e.target.files[0]; };
 
 // 项目相关数据
 const portfolios = ref([]);
@@ -476,171 +621,145 @@ const portfolioItems = computed(() => {
   return records.value.filter(record => record.attachmentPath);
 });
 
-const triggerFileInput = () => {
-  fileInput.value.click();
-};
-
-const handleFileChange = (e) => {
-  if (e.target.files.length > 0) {
-    selectedFile.value = e.target.files[0];
-  }
-};
-
-const formatDate = (dateStr) => {
-  if (!dateStr) return '';
-  const date = new Date(dateStr);
-  return date.toISOString().split('T')[0];
-};
-
-const getAttachmentUrl = (path) => {
-  if (!path) return '';
-  // 如果路径已经是完整URL，直接返回
-  if (path.startsWith('http')) {
-    return path;
-  }
-  // 如果是base64字符串，添加data:image前缀
-  if (path.length > 1000) { // 简单判断，base64字符串通常较长
-    return 'data:image/jpeg;base64,' + path;
-  }
-  // 否则返回相对路径，让前端代理处理
-  return path;
-};
-
-const handleImageError = (e) => {
-  console.error('图片加载失败:', e.target.src);
-  // 可以在这里添加默认图片逻辑
-};
-
 const fetchRecords = async () => {
   if (!userStore.userInfo?.userId) return;
-  
-  const params = {};
-  if (dateRange.value && dateRange.value.length === 2) {
-    params.startDate = dateRange.value[0];
-    params.endDate = dateRange.value[1];
-  }
-  
   try {
-    const res = await getDiaries(userStore.userInfo.userId, params);
-    const data = res.data || res; 
-    records.value = Array.isArray(data) ? data : (data.data || []);
-  } catch (error) {
-    console.error('Failed to fetch diaries:', error);
-    ElMessage.error('获取记录失败');
+    const res = await api.get('/diary/list', { params: { studentId: userStore.userInfo.userId } });
+    records.value = Array.isArray(res) ? res : (res?.data || []);
+    // 同步加载分组和标签
+    const [cats, tags] = await Promise.all([
+      api.get('/diary/categories', { params: { studentId: userStore.userInfo.userId } }),
+      api.get('/diary/tags', { params: { studentId: userStore.userInfo.userId } })
+    ]);
+    categories.value = cats || [];
+    allTags.value = tags || [];
+  } catch {
+    ElMessage.error('获取日志失败');
   }
 };
 
 const resetFilter = () => {
-  dateRange.value = [];
-  fetchRecords();
+  activeFilter.value = 'all';
+  activeCategory.value = '';
+  activeTag.value = '';
+  filterKeyword.value = '';
 };
 
+const formatDate = (dateStr) => {
+  if (!dateStr) return '';
+  return new Date(dateStr).toISOString().split('T')[0];
+};
+
+const getAttachmentUrl = (path) => {
+  if (!path) return '';
+  if (path.startsWith('http')) return path;
+  if (path.length > 1000) return 'data:image/jpeg;base64,' + path;
+  return `http://localhost:8083${path}`;
+};
+
+const handleImageError = (e) => { e.target.style.display = 'none'; };
+
 const handlePaste = async (e) => {
-  const items = e.clipboardData.items;
-  for (let i = 0; i< items.length; i++) {
-    const item = items[i];
-    if (item.type.indexOf('image') !== -1) {
-      e.preventDefault();
-      const file = item.getAsFile();
-      if (file) {
-        ElMessage.info('正在上传图片...');
-        console.log('图片文件:', file);
-        console.log('学生ID:', userStore.userInfo.userId);
-        
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('studentId', userStore.userInfo.userId);
-        
-        try {
-          console.log('发送请求到:', '/api/diary/upload-image');
-          const response = await fetch('/api/diary/upload-image', {
-            method: 'POST',
-            body: formData
-          });
-          
-          console.log('响应状态:', response.status);
-          console.log('响应状态文本:', response.statusText);
-          
-          if (response.ok) {
-            const data = await response.text();
-            console.log('响应数据:', data);
-            
-            // 确保图片路径是完整的URL
-            let imageUrl = data;
-            if (!imageUrl.startsWith('http')) {
-              // 如果是相对路径，添加完整的URL前缀
-              imageUrl = `http://localhost:8083${imageUrl}`;
-            }
-            
-            const img = document.createElement('img');
-            img.src = imageUrl;
-            img.style.maxWidth = '100%';
-            img.style.margin = '10px 0';
-            
-            const range = window.getSelection().getRangeAt(0);
-            range.deleteContents();
-            range.insertNode(img);
-            range.collapse(false);
-            
-            const selection = window.getSelection();
-            selection.removeAllRanges();
-            selection.addRange(range);
-            
-            ElMessage.success('图片上传成功');
-          } else {
-            const errorText = await response.text();
-            console.error('上传失败响应:', errorText);
-            ElMessage.error('图片上传失败: ' + errorText);
-          }
-        } catch (error) {
-          console.error('图片上传错误:', error);
-          ElMessage.error('图片上传失败: ' + error.message);
-        }
-      }
-      break;
-    }
-  }
+  // wangEditor 已内置图片粘贴上传，此函数保留兼容旧 contenteditable 区域
 };
 
 const submitRecord = async () => {
-  if (!form.value.title || !editor.value) {
-    ElMessage.warning('请填写日志标题和内容');
+  if (!form.value.title) { ElMessage.warning('请填写日志标题'); return; }
+  const content = wangEditorRef.value ? wangEditorRef.value.getHtml() : form.value.htmlContent;
+  const tagsStr = (form.value.tagList || []).join(',');
+
+  if (editingId.value && editingId.value !== 0) {
+    try {
+      await api.put(`/diary/${editingId.value}`, {
+        title: form.value.title, content,
+        mood: form.value.mood,
+        visibility: form.value.visibility,
+        isStarred: form.value.isStarred,
+        category: form.value.category || '',
+        tags: tagsStr
+      });
+      ElMessage.success('修改成功');
+      await fetchRecords();
+      currentRecord.value = records.value.find(r => r.id === editingId.value) || null;
+      editingId.value = null;
+    } catch { ElMessage.error('修改失败'); }
     return;
   }
 
-  const content = editor.value.innerHTML;
   const formData = new FormData();
   formData.append('studentId', userStore.userInfo.userId);
   formData.append('title', form.value.title);
   formData.append('content', content);
-  formData.append('recordDate', new Date().toISOString().split('T')[0]); // Default to today
+  formData.append('visibility', form.value.visibility);
+  formData.append('isStarred', form.value.isStarred);
+  formData.append('category', form.value.category || '');
+  formData.append('tags', tagsStr);
+  formData.append('recordDate', new Date().toISOString().split('T')[0]);
   if (form.value.mood) formData.append('mood', form.value.mood);
   if (selectedFile.value) formData.append('file', selectedFile.value);
 
   try {
     await createDiary(formData);
     ElMessage.success('发布成功');
-    clearForm();
-    fetchRecords();
-  } catch (error) {
-    console.error(error);
-    ElMessage.error('发布失败');
-  }
+    editingId.value = null;
+    selectedFile.value = null;
+    await fetchRecords();
+  } catch { ElMessage.error('发布失败'); }
 };
 
 const clearForm = () => {
-  form.value = { title: '', content: '', mood: '', recordDate: new Date().toISOString().split('T')[0] };
+  form.value = { title: '', htmlContent: '', mood: '', visibility: 1, isStarred: 0, category: '', tagList: [], recordDate: new Date().toISOString().split('T')[0] };
+  editingId.value = null;
   selectedFile.value = null;
-  if(fileInput.value) fileInput.value.value = '';
-  if(editor.value) editor.value.innerHTML = '';
+  if (fileInput.value) fileInput.value.value = '';
 };
 
-const detailVisible = ref(false);
-const currentRecord = ref(null);
+const openDetail = (record) => { currentRecord.value = record; editingId.value = null; };
 
-const openDetail = (record) => {
-  currentRecord.value = record;
-  detailVisible.value = true;
+// 新建：editingId=0 表示新建模式
+const startNew = () => {
+  currentRecord.value = null;
+  editingId.value = 0;
+  form.value = { title: '', htmlContent: '', mood: '', visibility: 1, isStarred: 0, category: '', tagList: [], recordDate: new Date().toISOString().split('T')[0] };
+  selectedFile.value = null;
+  nextTick(() => { if (wangEditorRef.value) wangEditorRef.value.setHtml(''); });
+};
+
+const openEdit = (record) => {
+  editingId.value = record.id;
+  form.value.title = record.title;
+  form.value.mood = record.mood || '';
+  form.value.visibility = record.visibility ?? 1;
+  form.value.isStarred = record.isStarred ?? 0;
+  form.value.category = record.category || '';
+  form.value.tagList = parseTags(record.tags);
+  form.value.htmlContent = record.content || '';
+  nextTick(() => { if (wangEditorRef.value) wangEditorRef.value.setHtml(record.content || ''); });
+};
+
+const cancelEdit = () => {
+  editingId.value = null;
+  selectedFile.value = null;
+};
+
+const deleteDiary = async (id) => {
+  try {
+    await ElMessageBox.confirm('确定要删除这条日志吗？', '警告', { type: 'warning' });
+    await api.delete(`/diary/${id}`);
+    ElMessage.success('删除成功');
+    if (currentRecord.value?.id === id) currentRecord.value = null;
+    await fetchRecords();
+  } catch { /* cancelled */ }
+};
+
+const toggleStar = async (record) => {
+  const newVal = record.isStarred === 1 ? 0 : 1;
+  try {
+    await api.put(`/diary/${record.id}/star`, null, { params: { starred: newVal === 1 } });
+    record.isStarred = newVal;
+    if (currentRecord.value?.id === record.id) currentRecord.value.isStarred = newVal;
+    ElMessage.success(newVal === 1 ? '已加星标' : '已取消星标');
+  } catch { ElMessage.error('操作失败'); }
 };
 
 // 项目相关方法
@@ -860,15 +979,8 @@ const deletePortfolio = async (id) => {
 const fetchPractices = async () => {
   if (!userStore.userInfo?.userId) return;
   try {
-    const response = await fetch(`/api/practice/list/${userStore.userInfo.userId}`);
-    if (response.ok) {
-      const data = await response.json();
-      practices.value = data;
-    } else {
-      ElMessage.error('获取实习经历失败');
-    }
-  } catch (error) {
-    console.error('Failed to fetch practices:', error);
+    practices.value = await api.get(`/practice/list/${userStore.userInfo.userId}`) || [];
+  } catch {
     ElMessage.error('获取实习经历失败');
   }
 };
@@ -934,12 +1046,13 @@ const handlePracticePaste = async (e) => {
 };
 
 const submitPractice = async () => {
-  if (!practiceForm.value.activityName || !practiceForm.value.organization || !practiceForm.value.startDate || !practiceForm.value.endDate || !practiceEditor.value) {
+  if (!practiceForm.value.activityName || !practiceForm.value.organization ||
+      !practiceForm.value.startDate || !practiceForm.value.endDate) {
     ElMessage.warning('请填写完整的实习经历信息');
     return;
   }
 
-  const content = practiceEditor.value.innerHTML;
+  const content = practiceEditor.value ? practiceEditor.value.innerHTML : '';
   const formData = new FormData();
   formData.append('studentId', userStore.userInfo.userId);
   formData.append('activityName', practiceForm.value.activityName);
@@ -952,24 +1065,14 @@ const submitPractice = async () => {
   }
 
   try {
-    const response = await fetch('/api/practice/upload', {
-      method: 'POST',
-      body: formData
-    });
-    
-    if (response.ok) {
-      ElMessage.success('实习经历上传成功');
-      practiceDialogVisible.value = false;
-      practiceForm.value = { activityName: '', organization: '', startDate: '', endDate: '', content: '' };
-      practiceFile.value = null;
-      if (practiceEditor.value) practiceEditor.value.innerHTML = '';
-      fetchPractices();
-    } else {
-      const errorText = await response.text();
-      ElMessage.error('上传失败: ' + errorText);
-    }
+    await api.post('/practice/upload', formData);
+    ElMessage.success('实习经历上传成功');
+    practiceDialogVisible.value = false;
+    practiceForm.value = { activityName: '', organization: '', startDate: '', endDate: '', content: '' };
+    practiceFile.value = null;
+    if (practiceEditor.value) practiceEditor.value.innerHTML = '';
+    fetchPractices();
   } catch (error) {
-    console.error(error);
     ElMessage.error('上传失败');
   }
 };
@@ -978,7 +1081,8 @@ const deletePractice = async (id) => {
   try {
     await ElMessageBox.confirm('确定要删除这个实习经历吗？', '警告', { type: 'warning' });
     const response = await fetch(`/api/practice/delete/${id}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: (() => { const t = sessionStorage.getItem('token'); return t ? { Authorization: `Bearer ${t}` } : {}; })()
     });
     
     if (response.ok) {
@@ -994,15 +1098,14 @@ const deletePractice = async (id) => {
 
 // 监听标签页变化，加载对应数据
 watch(activeTab, (newTab) => {
-  if (newTab === 'portfolio') {
-    fetchPortfolios();
-  } else if (newTab === 'practice') {
-    fetchPractices();
-  }
+  if (newTab === 'portfolio') fetchPortfolios();
+  else if (newTab === 'practice') fetchPractices();
 });
 
-onMounted(() => {
-  fetchRecords();
+onMounted(() => { fetchRecords(); });
+
+onBeforeUnmount(() => {
+  // WangEditor 组件内部自行销毁
 });
 </script>
 
@@ -1596,8 +1699,51 @@ h4 {
   font-weight: bold;
 }
 
-.practice-actions {
+.filter-section-title {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #303133;
 }
+.filter-group { display: flex; flex-direction: column; gap: 2px; }
+.filter-item {
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #606266;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: background 0.15s;
+}
+.filter-item:hover { background: #f0f2f5; }
+.filter-item.active { background: #ecf5ff; color: #409EFF; font-weight: 600; }
+.filter-item .count {
+  background: #f0f2f5;
+  border-radius: 10px;
+  padding: 1px 7px;
+  font-size: 11px;
+  color: #909399;
+}
+.tag-cloud { display: flex; flex-wrap: wrap; gap: 4px; }
+.timeline-active { background: #ecf5ff; border-radius: 6px; }
+.diary-detail-card { padding: 28px; }
+.diary-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+.diary-body {
+  line-height: 1.8;
+  color: #303133;
+  font-size: 15px;
+  min-height: 200px;
+}
+.diary-body img { max-width: 100%; border-radius: 6px; margin: 10px 0; }
 </style>
+

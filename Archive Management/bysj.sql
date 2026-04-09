@@ -1,4 +1,4 @@
-﻿﻿﻿﻿/*
+﻿/*
  Navicat Premium Data Transfer
 
  Source Server         : malo
@@ -177,7 +177,10 @@ CREATE TABLE `record_diary`  (
   `attachment_path` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '附件路径',
   `record_date` date NULL DEFAULT NULL COMMENT '记录发生日期',
   `create_time` datetime(0) NULL DEFAULT CURRENT_TIMESTAMP(0) COMMENT '发布时间',
-  `visibility` tinyint(1) NULL DEFAULT 1 COMMENT '可见性(1:公开给导师, 0:私密)',
+  `visibility` tinyint(1) NULL DEFAULT 1 COMMENT '可见性(0:私密-仅自己可见, 1:公开-导师可见)',
+  `is_starred` tinyint(1) NULL DEFAULT 0 COMMENT '是否星标(0:否, 1:是)',
+  `category` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '分组/分类名称',
+  `tags` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL COMMENT '标签，多个用逗号分隔',
   PRIMARY KEY (`id`) USING BTREE
 ) ENGINE = InnoDB AUTO_INCREMENT = 1 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci COMMENT = '成长记录/日记表' ROW_FORMAT = Dynamic;
 
@@ -278,7 +281,7 @@ CREATE TABLE `student_tutor_relation`  (
   `id` bigint(20) NOT NULL AUTO_INCREMENT,
   `student_id` bigint(20) NOT NULL COMMENT '学生ID',
   `tutor_id` bigint(20) NOT NULL COMMENT '导师ID',
-  `status` tinyint(2) NULL DEFAULT 0 COMMENT '绑定状态(0:待审核, 1:已绑定)',
+  `status` tinyint(2) NULL DEFAULT 0 COMMENT '绑定状态(0:待审核, 1:已绑定, 2:已拒绝)',
   `apply_time` datetime(0) NULL DEFAULT CURRENT_TIMESTAMP(0),
   `audit_time` datetime(0) NULL DEFAULT NULL,
   PRIMARY KEY (`id`) USING BTREE,

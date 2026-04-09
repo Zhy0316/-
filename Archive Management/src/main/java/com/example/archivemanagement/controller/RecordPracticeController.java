@@ -1,11 +1,14 @@
 package com.example.archivemanagement.controller;
 
+import com.example.archivemanagement.common.BusinessException;
+import com.example.archivemanagement.common.Result;
 import com.example.archivemanagement.entity.RecordPractice;
 import com.example.archivemanagement.service.RecordPracticeService;
 import com.example.archivemanagement.util.FileUploadUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.HttpHeaders;
+import java.io.IOException;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -22,119 +25,63 @@ public class RecordPracticeController {
     private final RecordPracticeService recordPracticeService;
 
     @PostMapping("/upload")
-    public ResponseEntity<String> uploadPractice(
+    public Result<Void> uploadPractice(
             @RequestParam("studentId") Long studentId,
             @RequestParam("activityName") String activityName,
             @RequestParam("organization") String organization,
             @RequestParam("startDate") String startDate,
             @RequestParam("endDate") String endDate,
             @RequestParam("content") String content,
-            @RequestParam("file") MultipartFile file) {
-        try {
-            String filePath = FileUploadUtil.uploadFile(file, studentId, "practice");
-            RecordPractice practice = new RecordPractice();
-            practice.setStudentId(studentId);
-            practice.setActivityName(activityName);
-            practice.setOrganization(organization);
-            practice.setStartDate(java.sql.Date.valueOf(startDate));
-            practice.setEndDate(java.sql.Date.valueOf(endDate));
-            practice.setContent(content);
-            practice.setProofFile(filePath);
-            boolean result = recordPracticeService.save(practice);
-            if (result) {
-                return ResponseEntity.ok("社会实践上传成功");
-            } else {
-                return ResponseEntity.badRequest().body("社会实践上传失败");
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.status(500).body("上传失败：" + e.getMessage());
+            @RequestParam(value = "file", required = false) MultipartFile file) throws IOException {
+        RecordPractice practice = new RecordPractice();
+        practice.setStudentId(studentId);
+        practice.setActivityName(activityName);
+        practice.setOrganization(organization);
+        practice.setStartDate(java.sql.Date.valueOf(startDate));
+        practice.setEndDate(java.sql.Date.valueOf(endDate));
+        practice.setContent(content);
+        if (file != null && !file.isEmpty()) {
+            practice.setProofFile(FileUploadUtil.uploadFile(file, studentId, "practice"));
         }
+        if (!recordPracticeService.save(practice)) throw new BusinessException("社会实践保存失败");
+        return Result.ok("社会实践上传成功");
     }
 
     @GetMapping("/list/{studentId}")
-    public ResponseEntity<List<RecordPractice>> getPracticeList(@PathVariable Long studentId) {
-        List<RecordPractice> practiceList = recordPracticeService.getByStudentId(studentId);
-        return ResponseEntity.ok(practiceList);
+    public Result<List<RecordPractice>> getPracticeList(@PathVariable Long studentId) {
+        return Result.ok(recordPracticeService.getByStudentId(studentId));
     }
 
     @DeleteMapping("/delete/{id}")
-    public ResponseEntity<String> deletePractice(@PathVariable Long id) {
-        boolean result = recordPracticeService.removeById(id);
-        if (result) {
-            return ResponseEntity.ok("删除成功");
-        } else {
-            return ResponseEntity.badRequest().body("删除失败");
-        }
+    public Result<Void> deletePractice(@PathVariable Long id) {
+        if (!recordPracticeService.removeById(id)) throw new BusinessException("删除失败");
+        return Result.ok("删除成功");
     }
 
     @PutMapping("/update")
-    public ResponseEntity<String> updatePractice(@RequestBody RecordPractice practice) {
-        boolean result = recordPracticeService.updateById(practice);
-        if (result) {
-            return ResponseEntity.ok("更新成功");
-        } else {
-            return ResponseEntity.badRequest().body("更新失败");
-        }
+    public Result<Void> updatePractice(@RequestBody RecordPractice practice) {
+        if (!recordPracticeService.updateById(practice)) throw new BusinessException("更新失败");
+        return Result.ok("更新成功");
     }
 
-    /**
-     * 在线查看实习材料文件
-     * @param id 实习材料ID
-     * @return 文件内容
-     */
+    /** 在线预览证明材料（保留 ResponseEntity 以便设置 Content-Type） */
     @GetMapping("/preview/{id}")
     public ResponseEntity<FileSystemResource> previewFile(@PathVariable Long id) {
-        try {
-            RecordPractice practice = recordPracticeService.getById(id);
-            if (practice == null) {
-                return ResponseEntity.notFound().build();
-            }
-
-            String filePath = practice.getProofFile();
-            if (filePath == null || filePath.isEmpty()) {
-                return ResponseEntity.notFound().build();
-            }
-
-            // 将相对路径转换为绝对路径
-            String absolutePath = FileUploadUtil.getBaseUploadDir() + filePath.substring(9);
-            
-            File file = new File(absolutePath);
-            if (!file.exists()) {
-                return ResponseEntity.notFound().build();
-            }
-
-            FileSystemResource resource = new FileSystemResource(file);
-
-            // 设置响应头，支持在线查看
-            HttpHeaders headers = new HttpHeaders();
-            headers.add(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + file.getName() + "\"");
-
-            // 根据文件扩展名设置不同的媒体类型
-            String fileName = file.getName().toLowerCase();
-            if (fileName.endsWith(".pdf")) {
-                return ResponseEntity.ok()
-                        .headers(headers)
-                        .contentType(MediaType.APPLICATION_PDF)
-                        .body(resource);
-            } else if (fileName.endsWith(".jpg") || fileName.endsWith(".jpeg") || fileName.endsWith(".png")) {
-                return ResponseEntity.ok()
-                        .headers(headers)
-                        .contentType(MediaType.IMAGE_JPEG)
-                        .body(resource);
-            } else if (fileName.endsWith(".doc") || fileName.endsWith(".docx")) {
-                // Word文档需要通过浏览器插件或在线服务查看
-                headers.add(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + file.getName() + "\"");
-                return ResponseEntity.ok()
-                        .headers(headers)
-                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                        .body(resource);
-            } else {
-                return ResponseEntity.badRequest().body(null);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.status(500).body(null);
+        RecordPractice practice = recordPracticeService.getById(id);
+        if (practice == null || practice.getProofFile() == null) {
+            return ResponseEntity.notFound().build();
         }
+        String absolutePath = FileUploadUtil.getBaseUploadDir() + practice.getProofFile().substring(9);
+        File file = new File(absolutePath);
+        if (!file.exists()) return ResponseEntity.notFound().build();
+
+        FileSystemResource resource = new FileSystemResource(file);
+        HttpHeaders headers = new HttpHeaders();
+        headers.add(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + file.getName() + "\"");
+        String name = file.getName().toLowerCase();
+        MediaType mediaType = name.endsWith(".pdf") ? MediaType.APPLICATION_PDF
+                : (name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".png"))
+                ? MediaType.IMAGE_JPEG : MediaType.APPLICATION_OCTET_STREAM;
+        return ResponseEntity.ok().headers(headers).contentType(mediaType).body(resource);
     }
 }

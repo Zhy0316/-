@@ -5,12 +5,15 @@
 
     <insert id="insert" parameterType="com.example.archivemanagement.entity.RecordDiary" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO record_diary (
-            student_id, title, content, mood, attachment_path, record_date, visibility
+            student_id, title, content, mood, attachment_path, record_date, visibility,
+            is_starred, category, tags
         ) VALUES (
-            #{studentId}, #{title}, #{content}, #{mood}, #{attachmentPath}, #{recordDate}, #{visibility}
+            #{studentId}, #{title}, #{content}, #{mood}, #{attachmentPath}, #{recordDate}, #{visibility},
+            #{isStarred}, #{category}, #{tags}
         )
     </insert>
 
+    <!-- 带筛选条件的查询：支持日期范围、星标、分组、标签 -->
     <select id="selectByStudentIdAndDateRange" resultType="com.example.archivemanagement.entity.RecordDiary">
         SELECT * FROM record_diary
         WHERE student_id = #{studentId}
@@ -20,28 +23,71 @@
         <if test="endDate != null">
             AND record_date &lt;= #{endDate}
         </if>
-        ORDER BY record_date DESC, create_time DESC
+        ORDER BY is_starred DESC, record_date DESC, create_time DESC
     </select>
-    
+
+    <!-- 带全部筛选条件的查询 -->
+    <select id="selectWithFilter" resultType="com.example.archivemanagement.entity.RecordDiary">
+        SELECT * FROM record_diary
+        WHERE student_id = #{studentId}
+        <if test="starred != null and starred == true">
+            AND is_starred = 1
+        </if>
+        <if test="category != null and category != ''">
+            AND category = #{category}
+        </if>
+        <if test="tag != null and tag != ''">
+            AND (tags = #{tag} OR tags LIKE CONCAT(#{tag}, ',%') OR tags LIKE CONCAT('%,', #{tag}, ',%') OR tags LIKE CONCAT('%,', #{tag}))
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND (title LIKE CONCAT('%', #{keyword}, '%') OR content LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        <if test="visibility != null">
+            AND visibility = #{visibility}
+        </if>
+        ORDER BY is_starred DESC, record_date DESC, create_time DESC
+    </select>
+
+    <!-- 查询某学生所有分组（去重） -->
+    <select id="selectCategories" resultType="string">
+        SELECT DISTINCT category FROM record_diary
+        WHERE student_id = #{studentId} AND category IS NOT NULL AND category != ''
+        ORDER BY category
+    </select>
+
+    <!-- 查询某学生所有标签（原始字符串，前端解析） -->
+    <select id="selectAllTags" resultType="string">
+        SELECT tags FROM record_diary
+        WHERE student_id = #{studentId} AND tags IS NOT NULL AND tags != ''
+    </select>
+
     <select id="selectById" resultType="com.example.archivemanagement.entity.RecordDiary">
         SELECT * FROM record_diary WHERE id = #{id}
     </select>
-    
+
     <delete id="deleteById">
         DELETE FROM record_diary WHERE id = #{id}
     </delete>
 
     <update id="update" parameterType="com.example.archivemanagement.entity.RecordDiary">
-        UPDATE record_diary 
+        UPDATE record_diary
         <set>
             <if test="title != null">title = #{title},</if>
             <if test="content != null">content = #{content},</if>
             <if test="mood != null">mood = #{mood},</if>
             <if test="attachmentPath != null">attachment_path = #{attachmentPath},</if>
             <if test="recordDate != null">record_date = #{recordDate},</if>
-            <if test="visibility != null">visibility = #{visibility}</if>
+            <if test="visibility != null">visibility = #{visibility},</if>
+            <if test="isStarred != null">is_starred = #{isStarred},</if>
+            <if test="category != null">category = #{category},</if>
+            <if test="tags != null">tags = #{tags}</if>
         </set>
         WHERE id = #{id}
+    </update>
+
+    <!-- 单独切换星标 -->
+    <update id="toggleStar">
+        UPDATE record_diary SET is_starred = #{isStarred} WHERE id = #{id}
     </update>
 
 </mapper>

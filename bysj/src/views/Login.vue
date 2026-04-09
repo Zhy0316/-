@@ -52,6 +52,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { authAPI } from '../services/auth.js'
 import { useUserStore } from '../stores/user.js'
+import { getRoleHome } from '../router/index.js'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -65,38 +66,26 @@ const loginForm = reactive({
 })
 
 const rules = {
-  username: [
-    { required: true, message: '请输入用户名', trigger: 'blur' }
-  ],
-  password: [
-    { required: true, message: '请输入密码', trigger: 'blur' }
-  ]
+  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
+  password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
 }
 
 const handleLogin = async () => {
   if (!loginFormRef.value) return
-  
-  const valid = await loginFormRef.value.validate()
+  const valid = await loginFormRef.value.validate().catch(() => false)
   if (!valid) return
-  
+
   loading.value = true
-  
   try {
     const response = await authAPI.login(loginForm.username, loginForm.password)
-    
-    if (response) {
-      userStore.setUser(response)
+    if (response && response.token) {
+      userStore.login(response)
       ElMessage.success('登录成功')
-      // 根据用户角色跳转到不同的页面
-      if (response.roleKey === 'tutor') {
-        router.push('/tutor')
-      } else {
-        router.push('/dashboard')
-      }
+      router.push(getRoleHome(response.roleKey))
     } else {
       ElMessage.error('用户名或密码错误')
     }
-  } catch (error) {
+  } catch {
     ElMessage.error('登录失败，请检查网络连接')
   } finally {
     loading.value = false

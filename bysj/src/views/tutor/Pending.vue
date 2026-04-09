@@ -42,67 +42,56 @@ const loadPendingApplications = async () => {
   if (!userStore.userInfo?.userId) return;
   
   try {
-    // 获取待审核申请
-    const response = await api({
-      url: `/relation/tutor/${userStore.userInfo.userId}/pending`,
-      method: 'get'
-    });
+    const applications = await api.get(`/relation/tutor/${userStore.userInfo.userId}/pending`) || [];
     
-    const applications = response.data || [];
-    
-    // 获取学生信息（这里需要调用学生信息接口）
-    // 由于没有学生信息接口，这里使用模拟数据
-    pendingApplications.value = applications.map(r => ({
-      id: r.id,
-      studentId: r.studentId,
-      studentName: '学生' + r.studentId,
-      studentNo: '2024' + r.studentId,
-      college: '计算机学院',
-      major: '计算机科学与技术',
-      applyTime: r.applyTime ? new Date(r.applyTime).toLocaleString() : ''
-    }));
-      
+    // 并发获取每个学生的真实信息
+    const enriched = await Promise.all(
+      applications.map(async (r) => {
+        try {
+          const profile = await api.get(`/student/profile/${r.studentId}`)
+          return {
+            id: r.id,
+            studentId: r.studentId,
+            studentName: profile?.realName || ('学生' + r.studentId),
+            studentNo: profile?.studentNo || '-',
+            college: profile?.college || '-',
+            major: profile?.major || '-',
+            applyTime: r.applyTime ? new Date(r.applyTime).toLocaleString() : ''
+          }
+        } catch {
+          return {
+            id: r.id,
+            studentId: r.studentId,
+            studentName: '学生' + r.studentId,
+            studentNo: '-', college: '-', major: '-',
+            applyTime: r.applyTime ? new Date(r.applyTime).toLocaleString() : ''
+          }
+        }
+      })
+    )
+    pendingApplications.value = enriched
   } catch (error) {
-    console.error('加载待审核申请失败:', error);
     ElMessage.error('加载待审核申请失败');
   }
 };
 
 const approveApplication = async (application) => {
   try {
-    await api({
-      url: '/relation/audit',
-      method: 'put',
-      data: {
-        id: application.id,
-        status: 1
-      }
-    });
-    
+    await api.put('/relation/audit', { id: application.id, status: 1 })
     ElMessage.success('审核通过');
     loadPendingApplications();
   } catch (error) {
-    console.error('审核失败:', error);
     ElMessage.error('审核失败');
   }
 };
 
 const rejectApplication = async (application) => {
   try {
-    await api({
-      url: '/relation/audit',
-      method: 'put',
-      data: {
-        id: application.id,
-        status: 2
-      }
-    });
-    
-    ElMessage.success('审核拒绝');
+    await api.put('/relation/audit', { id: application.id, status: 2 })
+    ElMessage.success('已拒绝');
     loadPendingApplications();
   } catch (error) {
-    console.error('审核失败:', error);
-    ElMessage.error('审核失败');
+    ElMessage.error('操作失败');
   }
 };
 

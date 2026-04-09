@@ -87,28 +87,53 @@
 
         <el-divider content-position="left">指导教师</el-divider>
 
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="选择指导教师">
-              <el-select v-model="selectedTutorId" placeholder="请选择指导教师" style="width: 100%" @change="handleTutorChange">
-                <el-option 
-                  v-for="tutor in tutors" 
-                  :key="tutor.userId" 
-                  :label="tutor.realName + ' (' + tutor.title + ')'" 
-                  :value="tutor.userId" 
-                />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="绑定状态">
-              <el-tag v-if="currentRelation" :type="currentRelation.status === 1 ? 'success' : 'warning'">
-                {{ currentRelation.status === 1 ? '已绑定' : '待审核' }}
-              </el-tag>
-              <el-tag v-else type="info">未绑定</el-tag>
+        <!-- 已绑定状态 -->
+        <el-row v-if="boundTutor" :gutter="20" style="margin-bottom:8px">
+          <el-col :span="24">
+            <el-form-item label="当前导师">
+              <el-descriptions :column="3" border size="small" style="width:100%">
+                <el-descriptions-item label="姓名">{{ boundTutor.realName }}</el-descriptions-item>
+                <el-descriptions-item label="职称">{{ boundTutor.title }}</el-descriptions-item>
+                <el-descriptions-item label="研究方向">{{ boundTutor.researchField }}</el-descriptions-item>
+              </el-descriptions>
+              <el-tag type="success" style="margin-top:8px">已绑定</el-tag>
             </el-form-item>
           </el-col>
         </el-row>
+
+        <!-- 待审核状态 -->
+        <el-row v-else-if="pendingRelation" :gutter="20" style="margin-bottom:8px">
+          <el-col :span="24">
+            <el-form-item label="绑定状态">
+              <el-alert type="warning" :closable="false"
+                :title="`已向「${pendingRelation.tutorName || '导师'}」发送申请，等待审核中...`" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <!-- 未绑定：展示导师列表供选择 -->
+        <template v-else>
+          <el-row :gutter="20" style="margin-bottom:8px">
+            <el-col :span="24">
+              <el-form-item label="选择导师">
+                <el-input v-model="tutorKeyword" placeholder="搜索姓名/研究方向" clearable style="width:220px;margin-bottom:10px">
+                  <template #prefix><el-icon><Search /></el-icon></template>
+                </el-input>
+                <el-table :data="filteredTutors" stripe size="small" style="width:100%" v-loading="tutorLoading">
+                  <el-table-column prop="realName" label="姓名" width="100" />
+                  <el-table-column prop="title" label="职称" width="110" />
+                  <el-table-column prop="researchField" label="研究方向" />
+                  <el-table-column label="操作" width="100">
+                    <template #default="{ row }">
+                      <el-button size="small" type="primary" @click="applyBind(row)">申请绑定</el-button>
+                    </template>
+                  </el-table-column>
+                </el-table>
+                <el-empty v-if="!tutorLoading && filteredTutors.length === 0" description="暂无导师数据" :image-size="60" />
+              </el-form-item>
+            </el-col>
+          </el-row>
+        </template>
 
         <el-divider content-position="left">详细信息</el-divider>
 
@@ -176,12 +201,12 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-// Make sure to import from correct path, adjust relative path as needed
+import { ref, reactive, computed, onMounted } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Search } from '@element-plus/icons-vue'
 import { studentAPI } from '../../services/student.js'
+import { api } from '../../services/api.js'
 import { useUserStore } from '../../stores/user.js'
-import axios from 'axios'
 
 const userStore = useUserStore()
 const formRef = ref(null)
@@ -189,10 +214,21 @@ const loading = ref(false)
 const fileInput = ref(null)
 const selectedFile = ref(null)
 
-// 指导教师相关数据
+// ===== 导师绑定相关 =====
 const tutors = ref([])
-const selectedTutorId = ref(null)
-const currentRelation = ref(null)
+const tutorLoading = ref(false)
+const tutorKeyword = ref('')
+const boundTutor = ref(null)       // 已绑定的导师信息
+const pendingRelation = ref(null)  // 待审核的申请
+
+const filteredTutors = computed(() => {
+  if (!tutorKeyword.value) return tutors.value
+  const kw = tutorKeyword.value.toLowerCase()
+  return tutors.value.filter(t =>
+    (t.realName || '').toLowerCase().includes(kw) ||
+    (t.researchField || '').toLowerCase().includes(kw)
+  )
+})
 
 const form = reactive({
   userId: null,
@@ -213,13 +249,7 @@ const form = reactive({
   birthDate: ''
 })
 
-const politicalOptions = [
-  '中共党员',
-  '中共预备党员',
-  '共青团员',
-  '群众',
-  '其它'
-]
+const politicalOptions = ['中共党员', '中共预备党员', '共青团员', '群众', '其它']
 
 const nationOptions = [
   '汉族', '壮族', '回族', '满族', '维吾尔族', '苗族', '彝族', '土家族', '藏族', '蒙古族',
@@ -230,125 +260,107 @@ const nationOptions = [
   '裕固族', '乌孜别克族', '门巴族', '鄂伦春族', '独龙族', '塔塔尔族', '赫哲族', '珞巴族'
 ]
 
-const triggerFileInput = () => {
-  fileInput.value.click();
-}
+const triggerFileInput = () => fileInput.value.click()
 
 const handleFileChange = (e) => {
-  if (e.target.files.length > 0) {
-    selectedFile.value = e.target.files[0];
-  }
+  if (e.target.files.length > 0) selectedFile.value = e.target.files[0]
 }
 
 const getAttachmentUrl = (path) => {
-  if (!path) return '#';
-  return import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}${path}` : `http://localhost:8080${path}`;
-};
+  if (!path) return '#'
+  if (path.startsWith('http')) return path
+  return `http://localhost:8083${path}`
+}
 
-// 加载教师列表
+// ===== 加载导师列表 =====
 const loadTutors = async () => {
+  tutorLoading.value = true
   try {
-    // 如果学生已经填写了学院和专业，传递这些信息进行过滤
-    const params = {};
-    if (form.college && form.major) {
-      params.college = form.college;
-      params.major = form.major;
-    }
-    
-    const response = await studentAPI.getTutors(params);
-    tutors.value = response.data || [];
-  } catch (error) {
-    console.error('加载教师列表失败:', error);
-    ElMessage.error('加载教师列表失败');
+    tutors.value = await api.get('/student/tutors') || []
+  } catch {
+    ElMessage.error('加载导师列表失败')
+  } finally {
+    tutorLoading.value = false
   }
-};
+}
 
-// 加载学生的绑定关系
-const loadStudentRelations = async () => {
-  if (!userStore.userInfo?.userId) return;
-  
+// ===== 加载绑定关系 =====
+const loadRelations = async () => {
+  const userId = userStore.userInfo?.userId
+  if (!userId) return
   try {
-    const response = await studentAPI.getStudentRelations(userStore.userInfo.userId);
-    const relations = response.data || [];
-    if (relations.length > 0) {
-      currentRelation.value = relations[0];
-      selectedTutorId.value = currentRelation.value.tutorId;
+    const relations = await api.get(`/relation/student/${userId}`) || []
+    const bound = relations.find(r => r.status === 1)
+    if (bound) {
+      const t = tutors.value.find(t => t.userId === bound.tutorId)
+      boundTutor.value = t || { realName: '导师' + bound.tutorId, title: '', researchField: '' }
+      return
     }
-  } catch (error) {
-    console.error('加载绑定关系失败:', error);
-  }
-};
+    const pending = relations.find(r => r.status === 0)
+    if (pending) {
+      const t = tutors.value.find(t => t.userId === pending.tutorId)
+      pendingRelation.value = { ...pending, tutorName: t?.realName }
+    }
+  } catch { /* 忽略 */ }
+}
 
-// 处理教师选择变化
-const handleTutorChange = async () => {
-  if (!selectedTutorId.value || !userStore.userInfo?.userId) return;
-  
+// ===== 申请绑定导师 =====
+const applyBind = async (tutor) => {
   try {
-    await studentAPI.applyForTutor(userStore.userInfo.userId, selectedTutorId.value);
-    ElMessage.success('申请提交成功，请等待教师审核');
-    // 重新加载绑定关系
-    await loadStudentRelations();
-  } catch (error) {
-    console.error('申请绑定失败:', error);
-    ElMessage.error('申请绑定失败，可能已经存在绑定关系');
+    await ElMessageBox.confirm(
+      `确定申请绑定导师「${tutor.realName}」吗？提交后需等待导师审核。`,
+      '申请确认', { type: 'info' }
+    )
+    await api.post('/relation/apply', {
+      studentId: userStore.userInfo.userId,
+      tutorId: tutor.userId
+    })
+    ElMessage.success('申请已发送，等待导师审核')
+    pendingRelation.value = { tutorName: tutor.realName }
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error(e?.response?.data || '申请失败，可能已存在绑定关系')
   }
-};
+}
 
 const rules = {
   realName: [{ required: true, message: '请输入真实姓名', trigger: 'blur' }],
   studentNo: [{ required: true, message: '请输入学号', trigger: 'blur' }],
-  major: [{ required: true, message: '请输入专业', trigger: 'blur' }],
-  college: [{ required: true, message: '请输入学院', trigger: 'blur' }],
+  major:     [{ required: true, message: '请输入专业', trigger: 'blur' }],
+  college:   [{ required: true, message: '请输入学院', trigger: 'blur' }],
 }
 
 const loadProfile = async () => {
-  // Assuming user store has userId. If not, logic might differ.
-  // In a real app userStore.userInfo should maintain current logged in user state
-  const userId = userStore.userInfo?.userId || userStore.userInfo?.id
-  
-  if (!userId) {
-    ElMessage.error('无法获取用户信息，请重新登录')
-    return
-  }
-
+  const userId = userStore.userInfo?.userId
+  if (!userId) { ElMessage.error('无法获取用户信息，请重新登录'); return }
   try {
     const res = await studentAPI.getProfile(userId)
-    // Merge response into form
     Object.assign(form, res)
-  } catch (error) {
-    console.error(error)
+  } catch {
     ElMessage.error('加载个人信息失败')
   }
 }
 
 const saveProfile = async () => {
   if (!formRef.value) return
-  
   await formRef.value.validate(async (valid) => {
-    if (valid) {
-      loading.value = true
-      try {
-        const userId = userStore.userInfo?.userId || userStore.userInfo?.id
-        
-        // Handle file upload first if strictly selected
-        if (selectedFile.value) {
-          const fileData = new FormData();
-          fileData.append('file', selectedFile.value);
-          const uploadRes = await axios.post('/student/upload-resume', fileData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-            baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8080/api'
-          });
-          form.resumeFile = uploadRes.data;
-        }
-
-        await studentAPI.updateProfile(userId, form)
-        ElMessage.success('保存成功')
-        selectedFile.value = null;
-      } catch (error) {
-        ElMessage.error('保存失败')
-      } finally {
-        loading.value = false
+    if (!valid) return
+    loading.value = true
+    try {
+      const userId = userStore.userInfo?.userId
+      // 简历上传
+      if (selectedFile.value) {
+        const fileData = new FormData()
+        fileData.append('file', selectedFile.value)
+        const res = await api.post('/student/resume/upload', fileData)
+        form.resumeFile = res?.filePath || form.resumeFile
+        selectedFile.value = null
       }
+      await studentAPI.updateProfile(userId, form)
+      ElMessage.success('保存成功')
+    } catch {
+      ElMessage.error('保存失败')
+    } finally {
+      loading.value = false
     }
   })
 }
@@ -356,7 +368,7 @@ const saveProfile = async () => {
 onMounted(async () => {
   await loadProfile()
   await loadTutors()
-  await loadStudentRelations()
+  await loadRelations()
 })
 </script>
 

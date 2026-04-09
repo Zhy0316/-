@@ -1,96 +1,92 @@
 package com.example.archivemanagement.controller;
 
+import com.example.archivemanagement.common.Result;
 import com.example.archivemanagement.entity.RecordAcademic;
 import com.example.archivemanagement.service.RecordAcademicService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import java.util.Map;
-import java.math.BigDecimal;
 
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/academic")
+@RequiredArgsConstructor
 public class RecordAcademicController {
 
-    @Autowired
-    private RecordAcademicService service;
+    private final RecordAcademicService service;
 
     @GetMapping("/{studentId}")
-    public ResponseEntity<List<RecordAcademic>> getByStudentId(@PathVariable Long studentId) {
-        return ResponseEntity.ok(service.getByStudentId(studentId));
+    public Result<List<RecordAcademic>> getByStudentId(@PathVariable Long studentId) {
+        return Result.ok(service.getByStudentId(studentId));
     }
 
+    @PostMapping("/import/{studentId}")
+    public Result<Map<String, Object>> importExcel(@PathVariable Long studentId,
+                                                   @RequestParam("file") MultipartFile file) throws Exception {
+        int count = service.importFromExcel(studentId, file);
+        return Result.ok(Map.of("message", "成绩导入成功，共导入 " + count + " 条", "count", count));
+    }
+
+    /** 兼容旧路径 */
     @PostMapping("/upload/{studentId}")
-    public ResponseEntity<?> uploadExcel(@PathVariable Long studentId, @RequestParam("file") MultipartFile file) {
-        try {
-            int count = service.importFromExcel(studentId, file);
-            return ResponseEntity.ok(Map.of("message", "成绩导入成功, 共导入" + count + "条数据", "status", "success", "count", count));
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("message", "导入失败: " + e.getMessage(), "status", "error"));
-        }
+    public Result<Map<String, Object>> uploadExcel(@PathVariable Long studentId,
+                                                   @RequestParam("file") MultipartFile file) throws Exception {
+        return importExcel(studentId, file);
+    }
+
+    /** 导出成绩 Excel（保留 void 直接写流） */
+    @GetMapping("/export/{studentId}")
+    public void exportExcel(@PathVariable Long studentId, HttpServletResponse response) throws Exception {
+        byte[] data = service.exportToExcel(studentId);
+        response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        response.setHeader("Content-Disposition", "attachment;filename=academic_" + studentId + ".xlsx");
+        response.getOutputStream().write(data);
+    }
+
+    @GetMapping("/gpa-trend/{studentId}")
+    public Result<List<Map<String, Object>>> gpaTrend(@PathVariable Long studentId) {
+        return Result.ok(service.getGpaTrend(studentId));
     }
 
     @PostMapping
-    public ResponseEntity<RecordAcademic> add(@RequestBody Map<String, Object> request) {
-        RecordAcademic record = mapRequestToRecord(request);
-        return ResponseEntity.ok(service.addRecord(record));
+    public Result<RecordAcademic> add(@RequestBody Map<String, Object> request) {
+        return Result.ok(service.addRecord(mapToRecord(request)));
     }
 
     @PutMapping
-    public ResponseEntity<RecordAcademic> update(@RequestBody Map<String, Object> request) {
-        RecordAcademic record = mapRequestToRecord(request);
-        if (request.containsKey("id")) {
-            record.setId(Long.parseLong(request.get("id").toString()));
-        }
-        return ResponseEntity.ok(service.updateRecord(record));
-    }
-
-    private RecordAcademic mapRequestToRecord(Map<String, Object> request) {
-        RecordAcademic record = new RecordAcademic();
-        
-        // Map front-end fields to backend fields
-        if (request.containsKey("studentId")) {
-            record.setStudentId(Long.parseLong(request.get("studentId").toString()));
-        }
-        if (request.containsKey("semester")) {
-            record.setAcademicYear(request.get("semester").toString());
-        }
-        if (request.containsKey("courseType")) {
-            record.setCourseNature(request.get("courseType").toString());
-        }
-        if (request.containsKey("courseName")) {
-            record.setCourseName(request.get("courseName").toString());
-        }
-        if (request.containsKey("credit")) {
-            record.setCredit(new BigDecimal(request.get("credit").toString()));
-        }
-        if (request.containsKey("score")) {
-            record.setScore(request.get("score").toString());
-        }
-        if (request.containsKey("gpaPoint")) {
-            record.setGpa(new BigDecimal(request.get("gpaPoint").toString()));
-        }
-        if (request.containsKey("isRetake")) {
-            int isRetake = Integer.parseInt(request.get("isRetake").toString());
-            record.setIsInvalidated(isRetake == 1 ? "是" : "否");
-        }
-        
-        // Calculate creditGpa if needed
-        if (record.getCredit() != null && record.getGpa() != null) {
-            record.setCreditGpa(record.getCredit().multiply(record.getGpa()));
-        }
-        
-        return record;
+    public Result<RecordAcademic> update(@RequestBody Map<String, Object> request) {
+        RecordAcademic record = mapToRecord(request);
+        if (request.containsKey("id")) record.setId(Long.parseLong(request.get("id").toString()));
+        return Result.ok(service.updateRecord(record));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
+    public Result<Void> delete(@PathVariable Long id) {
         service.deleteRecord(id);
-        return ResponseEntity.ok().build();
+        return Result.ok("删除成功");
+    }
+
+    private RecordAcademic mapToRecord(Map<String, Object> req) {
+        RecordAcademic r = new RecordAcademic();
+        if (req.containsKey("studentId"))    r.setStudentId(Long.parseLong(req.get("studentId").toString()));
+        if (req.containsKey("semester"))     r.setAcademicYear(req.get("semester").toString());
+        if (req.containsKey("academicYear")) r.setAcademicYear(req.get("academicYear").toString());
+        if (req.containsKey("courseType"))   r.setCourseNature(req.get("courseType").toString());
+        if (req.containsKey("courseNature")) r.setCourseNature(req.get("courseNature").toString());
+        if (req.containsKey("courseName"))   r.setCourseName(req.get("courseName").toString());
+        if (req.containsKey("credit"))       r.setCredit(new BigDecimal(req.get("credit").toString()));
+        if (req.containsKey("score"))        r.setScore(req.get("score").toString());
+        if (req.containsKey("gpa"))          r.setGpa(new BigDecimal(req.get("gpa").toString()));
+        if (req.containsKey("gpaPoint"))     r.setGpa(new BigDecimal(req.get("gpaPoint").toString()));
+        if (req.containsKey("isRetake")) {
+            r.setIsInvalidated(Integer.parseInt(req.get("isRetake").toString()) == 1 ? "是" : "否");
+        }
+        if (req.containsKey("isInvalidated")) r.setIsInvalidated(req.get("isInvalidated").toString());
+        if (r.getCredit() != null && r.getGpa() != null) r.setCreditGpa(r.getCredit().multiply(r.getGpa()));
+        return r;
     }
 }

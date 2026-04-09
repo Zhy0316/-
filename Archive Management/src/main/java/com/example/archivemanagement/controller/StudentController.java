@@ -1,14 +1,18 @@
 package com.example.archivemanagement.controller;
 
+import com.example.archivemanagement.common.BusinessException;
+import com.example.archivemanagement.common.Result;
 import com.example.archivemanagement.dto.StudentProfileDTO;
 import com.example.archivemanagement.service.InfoStudentService;
+import com.example.archivemanagement.util.FileUploadUtil;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import java.io.File;
+
 import java.io.IOException;
-import java.util.UUID;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/student")
@@ -16,42 +20,65 @@ import java.util.UUID;
 public class StudentController {
 
     private final InfoStudentService infoStudentService;
-    private static final String UPLOAD_DIR = System.getProperty("user.dir") + "/uploads/";
 
-    @PostMapping("/upload-resume")
-    public ResponseEntity<String> uploadResume(@RequestParam("file") MultipartFile file) {
-        if (file.isEmpty()) {
-            return ResponseEntity.badRequest().body("文件为空");
-        }
-        try {
-            File dir = new File(UPLOAD_DIR);
-            if (!dir.exists()) dir.mkdirs();
-            String filename = UUID.randomUUID().toString() + "_" + file.getOriginalFilename();
-            File dest = new File(dir, filename);
-            file.transferTo(dest);
-            return ResponseEntity.ok("/uploads/" + filename);
-        } catch (IOException e) {
-            e.printStackTrace();
-            return ResponseEntity.status(500).body("上传失败");
-        }
+    @GetMapping("/profile")
+    public Result<StudentProfileDTO> getMyProfile(HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        StudentProfileDTO profile = infoStudentService.getStudentProfile(userId);
+        if (profile == null) throw BusinessException.notFound("档案不存在");
+        return Result.ok(profile);
     }
 
     @GetMapping("/profile/{userId}")
-    public ResponseEntity<StudentProfileDTO> getProfile(@PathVariable Long userId) {
-        StudentProfileDTO profile = infoStudentService.getStudentProfile(userId);
-        if (profile != null) {
-            return ResponseEntity.ok(profile);
-        } else {
-            return ResponseEntity.notFound().build();
+    public Result<StudentProfileDTO> getProfile(@PathVariable Long userId,
+                                                HttpServletRequest request) {
+        Long callerId = (Long) request.getAttribute("userId");
+        String roleKey = (String) request.getAttribute("roleKey");
+        if ("student".equals(roleKey) && !userId.equals(callerId)) {
+            throw BusinessException.forbidden("无权查看其他学生的档案");
         }
+        StudentProfileDTO profile = infoStudentService.getStudentProfile(userId);
+        if (profile == null) throw BusinessException.notFound("档案不存在");
+        return Result.ok(profile);
+    }
+
+    @PutMapping("/profile")
+    public Result<Void> updateMyProfile(@Valid @RequestBody StudentProfileDTO dto,
+                                        HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        if (!infoStudentService.updateStudentProfile(userId, dto)) throw new BusinessException("更新失败");
+        return Result.ok("更新成功");
     }
 
     @PostMapping("/profile/{userId}")
-    public ResponseEntity<String> updateProfile(@PathVariable Long userId, @RequestBody StudentProfileDTO profileDTO) {
-        if (infoStudentService.updateStudentProfile(userId, profileDTO)) {
-            return ResponseEntity.ok("更新成功");
-        } else {
-            return ResponseEntity.badRequest().body("更新失败");
+    public Result<Void> updateProfile(@PathVariable Long userId,
+                                      @Valid @RequestBody StudentProfileDTO dto,
+                                      HttpServletRequest request) {
+        Long callerId = (Long) request.getAttribute("userId");
+        String roleKey = (String) request.getAttribute("roleKey");
+        if ("student".equals(roleKey) && !userId.equals(callerId)) {
+            throw BusinessException.forbidden("无权修改他人档案");
         }
+        if (!infoStudentService.updateStudentProfile(userId, dto)) throw new BusinessException("更新失败");
+        return Result.ok("更新成功");
+    }
+
+    @PostMapping("/resume/upload")
+    public Result<Map<String, String>> uploadResume(@RequestParam("file") MultipartFile file,
+                                                    HttpServletRequest request) throws IOException {
+        Long userId = (Long) request.getAttribute("userId");
+        String filePath = FileUploadUtil.uploadFile(file, userId, "resume");
+        StudentProfileDTO dto = new StudentProfileDTO();
+        dto.setResumeFile(filePath);
+        infoStudentService.updateStudentProfile(userId, dto);
+        return Result.ok(Map.of("filePath", filePath));
+    }
+
+    @PostMapping("/avatar/upload")
+    public Result<Map<String, String>> uploadAvatar(@RequestParam("file") MultipartFile file,
+                                                    HttpServletRequest request) throws IOException {
+        Long userId = (Long) request.getAttribute("userId");
+        String filePath = FileUploadUtil.uploadFile(file, userId, "avatar");
+        return Result.ok(Map.of("filePath", filePath));
     }
 }

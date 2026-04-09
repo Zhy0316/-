@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.archivemanagement.mapper.BusJobApplicationMapper">
+
+    <!-- 学生查看自己的投递记录（含招聘信息） -->
+    <select id="selectByStudentWithDetail" resultType="map">
+        SELECT
+            a.id            AS applicationId,
+            a.status        AS status,
+            a.message       AS message,
+            a.apply_time    AS applyTime,
+            r.id            AS recruitmentId,
+            r.title         AS title,
+            r.position      AS position,
+            r.salary_range  AS salaryRange,
+            r.location      AS location,
+            e.company_name  AS companyName
+        FROM bus_job_application a
+        LEFT JOIN bus_recruitment r ON r.id = a.recruitment_id
+        LEFT JOIN info_enterprise e ON e.user_id = r.enterprise_id
+        WHERE a.student_id = #{studentId}
+        ORDER BY a.apply_time DESC
+    </select>
+
+    <!-- 企业查看某职位的投递列表（含学生信息） -->
+    <select id="selectByRecruitmentWithDetail" resultType="map">
+        SELECT
+            a.id            AS applicationId,
+            a.status        AS status,
+            a.message       AS message,
+            a.apply_time    AS applyTime,
+            u.user_id       AS studentId,
+            u.real_name     AS realName,
+            s.student_no    AS studentNo,
+            s.college       AS college,
+            s.major         AS major,
+            s.resume_file   AS resumeFile
+        FROM bus_job_application a
+        LEFT JOIN sys_user u ON u.user_id = a.student_id
+        LEFT JOIN info_student s ON s.user_id = a.student_id
+        WHERE a.recruitment_id = #{recruitmentId}
+        ORDER BY a.apply_time DESC
+    </select>
+
+</mapper>
