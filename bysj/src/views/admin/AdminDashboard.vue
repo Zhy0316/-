@@ -29,7 +29,10 @@
       <el-header class="header">
         <span class="page-title">{{ pageTitle }}</span>
         <div class="header-right">
-          <UserDropdown />
+          <span class="username">{{ userStore.userInfo?.realName }}（管理员）</span>
+          <el-button text @click="handleLogout">
+            <el-icon><SwitchButton /></el-icon> 退出
+          </el-button>
         </div>
       </el-header>
 
@@ -78,7 +81,6 @@ import * as echarts from 'echarts'
 import {
   Setting, DataAnalysis, User, OfficeBuilding, Trophy, Download, SwitchButton
 } from '@element-plus/icons-vue'
-import UserDropdown from '../../components/Layout/UserDropdown.vue'
 
 const router = useRouter()
 const route = useRoute()

@@ -100,6 +100,22 @@ public class RecordAwardController {
         return Result.ok(auditStatus == 1 ? "审核通过" : "已驳回");
     }
 
+    /**
+     * 导师审核获奖记录
+     * PUT /api/award/audit/{id}
+     * body: { "auditStatus": 1 }  1=通过，0=驳回
+     */
+    @PutMapping("/audit/{id}")
+    public ResponseEntity<?> auditAward(@PathVariable Long id,
+                                        @RequestBody java.util.Map<String, Object> body) {
+        RecordAward award = service.getById(id);
+        if (award == null) return ResponseEntity.status(404).body("记录不存在");
+        Integer auditStatus = Integer.valueOf(body.get("auditStatus").toString());
+        award.setAuditStatus(auditStatus);
+        service.updateById(award);
+        return ResponseEntity.ok(auditStatus == 1 ? "审核通过" : "已驳回");
+    }
+
     @PutMapping
     public Result<RecordAward> updateAward(
             @RequestParam("id") Long id,
