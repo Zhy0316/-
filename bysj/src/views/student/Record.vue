@@ -1,14 +1,8 @@
 <template>
   <div class="student-growth">
-    <h3>成长记录与作品展示</h3>
-    
-    <div class="tabs">
-      <div class="tab" :class="{ active: activeTab === 'diary' }" @click="activeTab = 'diary'">成长日志</div>
-      <div class="tab" :class="{ active: activeTab === 'portfolio' }" @click="activeTab = 'portfolio'">作品集</div>
-      <div class="tab" :class="{ active: activeTab === 'practice' }" @click="activeTab = 'practice'">实习经历</div>
-    </div>
+    <h3>成长日志</h3>
 
-    <div class="content-area" v-show="activeTab === 'diary'">
+    <div class="content-area">
       <!-- 左侧：筛选 + 新建入口 -->
       <div class="sidebar">
 
@@ -193,6 +187,20 @@
           <div v-if="currentRecord.attachmentPath" class="detail-attachment">
             <a :href="getAttachmentUrl(currentRecord.attachmentPath)" target="_blank">📎 查看 / 下载附件</a>
           </div>
+
+          <!-- 导师批注（只读） -->
+          <template v-if="currentDiaryComments.length">
+            <el-divider content-position="left">
+              <span style="font-size:13px;color:#909399">导师批注（{{ currentDiaryComments.length }} 条）</span>
+            </el-divider>
+            <div v-for="c in currentDiaryComments" :key="c.id"
+              style="background:#f0f7ff;border-left:3px solid #409EFF;border-radius:4px;padding:12px;margin-bottom:10px">
+              <div style="font-size:12px;color:#909399;margin-bottom:6px">
+                导师批注 · {{ c.createTime ? new Date(c.createTime).toLocaleString() : '' }}
+              </div>
+              <div style="line-height:1.7;color:#303133;font-size:14px" v-html="c.content"></div>
+            </div>
+          </template>
         </div>
 
         <!-- 空状态 -->
@@ -203,272 +211,6 @@
       </div>
     </div>
 
-    <!-- 作品集部分 -->
-    <div v-show="activeTab === 'portfolio'">
-      <div class="section-card">
-        <div class="card-header">
-          <h4>我的作品集 (从成长日志附件聚合)</h4>
-        </div>
-        <div class="portfolio-grid" v-if="portfolioItems.length > 0">
-          <div class="portfolio-item" v-for="item in portfolioItems" :key="item.id">
-            <div class="portfolio-thumb">
-              <div class="file-type">FILE</div>
-            </div>
-            <div class="portfolio-info">
-              <h5>{{ item.title }} 的附件</h5>
-              <p>{{ formatDate(item.recordDate || item.createTime) }} 上传</p>
-              <div class="actions">
-                <a :href="getAttachmentUrl(item.attachmentPath)" target="_blank">预览下载</a>
-              </div>
-            </div>
-          </div>
-        </div>
-        <el-empty v-else description="暂无具有附件的作品" />
-      </div>
-      
-      <div class="section-card">
-        <div class="card-header">
-          <h4>我的作品集</h4>
-          <el-button type="primary" @click="portfolioDialogVisible = true">上传作品</el-button>
-        </div>
-        <div class="portfolio-grid" v-if="portfolios.length >0">
-          <div class="portfolio-card" v-for="item in portfolios" :key="item.id">
-            <div class="portfolio-card-cover" v-if="item.coverUrl">
-              <img :src="getAttachmentUrl(item.coverUrl)" alt="封面" @error="handleImageError">
-            </div>
-            <div class="portfolio-card-cover placeholder" v-else>
-              <div class="placeholder-icon">📁</div>
-            </div>
-            <div class="portfolio-card-content">
-              <h5 class="portfolio-card-title">{{ item.title }}</h5>
-              <div class="portfolio-card-meta">
-                <span class="portfolio-card-date">{{ formatDate(item.uploadTime) }}</span>
-                <el-tag size="small">{{ item.workType }}</el-tag>
-              </div>
-              <div class="portfolio-card-preview" v-html="item.description"></div>
-              <div class="portfolio-card-actions">
-                <el-button size="small" type="primary" @click="openPortfolioDetail(item)">详情</el-button>
-                <el-button size="small" @click="downloadPortfolio(item.id)">下载</el-button>
-                <el-button size="small" type="danger" @click="deletePortfolio(item.id)">删除</el-button>
-              </div>
-            </div>
-          </div>
-        </div>
-        <el-empty v-else description="暂无作品" />
-      </div>
-
-      <!-- 上传作品弹窗 -->
-      <el-dialog title="上传作品" v-model="portfolioDialogVisible" width="600px">
-        <el-form :model="portfolioForm" label-width="100px">
-          <el-form-item label="作品标题">
-            <el-input v-model="portfolioForm.title" placeholder="请输入作品标题"></el-input>
-          </el-form-item>
-          <el-form-item label="作品类型">
-            <el-select v-model="portfolioForm.workType" placeholder="请选择作品类型">
-              <el-option label="代码" value="代码"></el-option>
-              <el-option label="设计图" value="设计图"></el-option>
-              <el-option label="文章" value="文章"></el-option>
-              <el-option label="其他" value="其他"></el-option>
-            </el-select>
-          </el-form-item>
-          <el-form-item label="作品简介">
-            <div
-              ref="portfolioEditor"
-              contenteditable="true"
-              class="rich-editor"
-              placeholder="请输入作品简介，支持粘贴图片..."
-              @paste="handlePortfolioPaste"
-            ></div>
-          </el-form-item>
-          <el-form-item label="上传项目">
-            <el-upload
-              class="upload-demo"
-              action="#"
-              :auto-upload="false"
-              :on-change="handlePortfolioFileChange"
-              :show-file-list="true"
-              accept=".zip,.rar,.7z,.jpg,.jpeg,.png,.pdf,.doc,.docx"
-            >
-              <el-button type="primary">选择项目文件夹/文件</el-button>
-              <div slot="tip" class="el-upload__tip">
-                <span style="color: #3498db; font-weight: bold;">推荐上传项目压缩包（.zip/.rar）</span>，支持文件夹结构展示<br>
-                也支持单个文件上传（图片、文档等）
-              </div>
-            </el-upload>
-          </el-form-item>
-          <el-form-item label="封面图片">
-            <el-upload
-              class="upload-demo"
-              action="#"
-              :auto-upload="false"
-              :on-change="handleCoverFileChange"
-              :show-file-list="true"
-              accept=".jpg,.jpeg,.png"
-            >
-              <el-button type="primary">选择封面图片</el-button>
-              <div slot="tip" class="el-upload__tip">
-                支持JPG、PNG格式，建议尺寸：800x600像素
-              </div>
-            </el-upload>
-          </el-form-item>
-        </el-form>
-        <template #footer>
-          <span class="dialog-footer">
-            <el-button @click="portfolioDialogVisible = false">取消</el-button>
-            <el-button type="primary" @click="submitPortfolio">上传</el-button>
-          </span>
-        </template>
-      </el-dialog>
-    </div>
-
-    <!-- 实习经历部分 -->
-    <div v-show="activeTab === 'practice'">
-      <div class="section-card">
-        <div class="card-header">
-          <h4>我的实习经历</h4>
-          <el-button type="primary" @click="practiceDialogVisible = true">添加实习经历</el-button>
-        </div>
-        <div class="practice-list" v-if="practices.length > 0">
-          <div class="practice-item" v-for="item in practices" :key="item.id">
-            <div class="practice-header">
-              <h5>{{ item.activityName }}</h5>
-              <span class="practice-organization">{{ item.organization }}</span>
-            </div>
-            <div class="practice-meta">
-              <span>{{ formatDate(item.startDate) }} 至 {{ formatDate(item.endDate) }}</span>
-            </div>
-            <div class="practice-content" v-html="item.content"></div>
-            <div v-if="item.proofFile" class="practice-attachment">
-              <a :href="`/api/practice/preview/${item.id}`" target="_blank">
-                📎 在线查看证明材料
-              </a>
-            </div>
-            <div class="practice-actions">
-              <span class="delete-btn" @click="deletePractice(item.id)">删除</span>
-            </div>
-          </div>
-        </div>
-        <el-empty v-else description="暂无实习经历" />
-      </div>
-    </div>
-
-    <!-- 作品集详情对话框 -->
-    <el-dialog title="项目详情" v-model="portfolioDetailVisible" width="900px">
-      <div v-if="currentPortfolio" class="portfolio-detail">
-        <div class="detail-header">
-          <div class="detail-cover" v-if="currentPortfolio.coverUrl">
-            <img :src="getAttachmentUrl(currentPortfolio.coverUrl)" alt="封面">
-          </div>
-          <div class="detail-title-area">
-            <h4>{{ currentPortfolio.title }}</h4>
-            <el-tag size="small">{{ currentPortfolio.workType }}</el-tag>
-          </div>
-        </div>
-        <div class="detail-meta">
-          <span>{{ formatDate(currentPortfolio.uploadTime) }} 上传</span>
-        </div>
-        
-        <!-- 项目结构展示 -->
-        <div class="detail-file-tree">
-          <h5>项目结构</h5>
-          <div class="file-tree-container">
-            <div class="project-structure" v-if="fileTree.length > 0">
-              <div v-for="node in fileTree" :key="node.name">
-                <file-tree-item :node="node" :level="0" />
-              </div>
-            </div>
-            <div v-else class="single-file">
-              <div class="structure-item">
-                <span class="structure-icon">
-                  {{ currentPortfolio.fileUrl && currentPortfolio.fileUrl.includes('.jpg') || currentPortfolio.fileUrl.includes('.png') || currentPortfolio.fileUrl.includes('.jpeg') ? '🖼️' : 
-                    currentPortfolio.fileUrl && currentPortfolio.fileUrl.includes('.pdf') ? '📕' :
-                    currentPortfolio.fileUrl && currentPortfolio.fileUrl.includes('.doc') || currentPortfolio.fileUrl.includes('.docx') ? '📘' : '📄' }}
-                </span>
-                <span class="structure-name">{{ currentPortfolio.title }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <!-- 项目简介 -->
-        <div class="detail-description">
-          <h5>项目简介</h5>
-          <div class="description-content" v-html="currentPortfolio.description"></div>
-        </div>
-        
-        <!-- 下载按钮 -->
-        <div class="detail-download">
-          <a href="javascript:void(0)" @click="downloadPortfolio(currentPortfolio.id)" class="download-btn">
-            📥 下载项目文件
-          </a>
-        </div>
-      </div>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="portfolioDetailVisible = false">关闭</el-button>
-        </span>
-      </template>
-    </el-dialog>
-    
-
-
-    <!-- 实习经历上传弹窗 -->
-    <el-dialog title="添加实习经历" v-model="practiceDialogVisible" width="600px">
-      <el-form :model="practiceForm" label-width="100px">
-        <el-form-item label="实习主题">
-          <el-input v-model="practiceForm.activityName" placeholder="请输入实习主题名称"></el-input>
-        </el-form-item>
-        <el-form-item label="实习单位">
-          <el-input v-model="practiceForm.organization" placeholder="请输入实习单位/组织"></el-input>
-        </el-form-item>
-        <el-form-item label="实习时间">
-          <div style="display: flex; gap: 10px; align-items: center;">
-            <el-date-picker
-              v-model="practiceForm.startDate"
-              type="date"
-              placeholder="开始日期"
-              value-format="YYYY-MM-DD"
-              style="width: 180px;"
-            ></el-date-picker>
-            <span>至</span>
-            <el-date-picker
-              v-model="practiceForm.endDate"
-              type="date"
-              placeholder="结束日期"
-              value-format="YYYY-MM-DD"
-              style="width: 180px;"
-            ></el-date-picker>
-          </div>
-        </el-form-item>
-        <el-form-item label="实习内容">
-          <div
-            ref="practiceEditor"
-            contenteditable="true"
-            class="rich-editor"
-            placeholder="请输入实习内容和心得..."
-            @paste="handlePracticePaste"
-          ></div>
-        </el-form-item>
-        <el-form-item label="证明材料">
-          <el-upload
-            class="upload-demo"
-            action="#"
-            :auto-upload="false"
-            :on-change="handlePracticeFileChange"
-            :show-file-list="true"
-            accept=".jpg,.jpeg,.png,.pdf,.doc,.docx"
-          >
-            <el-button type="primary">选择文件</el-button>
-          </el-upload>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="practiceDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="submitPractice">提交</el-button>
-        </span>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
@@ -476,8 +218,8 @@
 import { ref, computed, onMounted, onBeforeUnmount, watch, defineComponent, nextTick } from 'vue';
 import { useUserStore } from '@/stores/user';
 import { getDiaries, createDiary } from '@/services/diary';
-import { getPortfolios, addPortfolio, deletePortfolio as deletePortfolioApi, downloadPortfolio } from '@/services/portfolio';
 import { api } from '@/services/api';
+import { getCommentList } from '@/services/comment';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Search } from '@element-plus/icons-vue';
 import WangEditor from '@/components/WangEditor.vue';
@@ -588,35 +330,9 @@ const addCategory = () => {
 const triggerFileInput = () => { fileInput.value.click(); };
 const handleFileChange = (e) => { if (e.target.files.length > 0) selectedFile.value = e.target.files[0]; };
 
-// 项目相关数据
-const portfolios = ref([]);
-const portfolioDialogVisible = ref(false);
-const portfolioDetailVisible = ref(false);
-const currentPortfolio = ref(null);
-const portfolioForm = ref({
-  title: '',
-  workType: '',
-  description: ''
-});
-const portfolioFile = ref(null);
-const coverFile = ref(null);
-const portfolioEditor = ref(null);
-const fileTree = ref([]);
+// 项目相关数据（已移至 Portfolio.vue，保留空引用避免报错）
 
-// 实习经历相关数据
-const practices = ref([]);
-const practiceDialogVisible = ref(false);
-const practiceForm = ref({
-  activityName: '',
-  organization: '',
-  startDate: '',
-  endDate: '',
-  content: ''
-});
-const practiceFile = ref(null);
-const practiceEditor = ref(null);
-
-// 计算属性，过滤出有附件的记录作为作品集展示
+// 计算属性，过滤出有附件的记录作为作品集展示（保留，日记附件聚合用）
 const portfolioItems = computed(() => {
   return records.value.filter(record => record.attachmentPath);
 });
@@ -714,7 +430,24 @@ const clearForm = () => {
   if (fileInput.value) fileInput.value.value = '';
 };
 
-const openDetail = (record) => { currentRecord.value = record; editingId.value = null; };
+const openDetail = (record) => {
+  currentRecord.value = record;
+  editingId.value = null;
+  loadDiaryComments(record.id);
+};
+
+// 加载该日记的导师批注
+const currentDiaryComments = ref([]);
+const loadDiaryComments = async (diaryId) => {
+  try {
+    const userId = userStore.userInfo?.userId;
+    if (!userId) return;
+    const all = await getCommentList(userId) || [];
+    currentDiaryComments.value = all.filter(
+      c => c.targetType === 'DIARY' && c.targetId === diaryId
+    );
+  } catch { currentDiaryComments.value = []; }
+};
 
 // 新建：editingId=0 表示新建模式
 const startNew = () => {
@@ -761,346 +494,6 @@ const toggleStar = async (record) => {
     ElMessage.success(newVal === 1 ? '已加星标' : '已取消星标');
   } catch { ElMessage.error('操作失败'); }
 };
-
-// 项目相关方法
-const fetchPortfolios = async () => {
-  if (!userStore.userInfo?.userId) return;
-  try {
-    const res = await getPortfolios(userStore.userInfo.userId);
-    portfolios.value = res.data || res || [];
-  } catch (error) {
-    console.error('Failed to fetch portfolios:', error);
-    ElMessage.error('获取作品集失败');
-  }
-};
-
-const handlePortfolioFileChange = (file) => {
-  portfolioFile.value = file.raw;
-};
-
-const handleCoverFileChange = (file) => {
-  coverFile.value = file.raw;
-};
-
-const handlePortfolioPaste = async (e) => {
-  const items = e.clipboardData.items;
-  for (let i = 0; i< items.length; i++) {
-    const item = items[i];
-    if (item.type.indexOf('image') !== -1) {
-      e.preventDefault();
-      const file = item.getAsFile();
-      if (file) {
-        ElMessage.info('正在上传图片...');
-        
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('studentId', userStore.userInfo.userId);
-        
-        try {
-          const response = await fetch('/api/diary/upload-image', {
-            method: 'POST',
-            body: formData
-          });
-          
-          if (response.ok) {
-            const data = await response.text();
-            let imageUrl = data;
-            if (!imageUrl.startsWith('http')) {
-              imageUrl = `http://localhost:8083${imageUrl}`;
-            }
-            
-            const img = document.createElement('img');
-            img.src = imageUrl;
-            img.style.maxWidth = '100%';
-            img.style.margin = '10px 0';
-            
-            const range = window.getSelection().getRangeAt(0);
-            range.deleteContents();
-            range.insertNode(img);
-            range.collapse(false);
-            
-            const selection = window.getSelection();
-            selection.removeAllRanges();
-            selection.addRange(range);
-            
-            ElMessage.success('图片上传成功');
-          } else {
-            const errorText = await response.text();
-            ElMessage.error('图片上传失败: ' + errorText);
-          }
-        } catch (error) {
-          console.error('图片上传错误:', error);
-          ElMessage.error('图片上传失败: ' + error.message);
-        }
-      }
-      break;
-    }
-  }
-};
-
-const generateFileTree = (portfolio) => {
-  const fileTreeData = [];
-  
-  // 如果有后端生成的文件结构，使用真实结构
-  if (portfolio.fileStructure) {
-    try {
-      const treeData = JSON.parse(portfolio.fileStructure);
-      fileTreeData.push(treeData);
-      return fileTreeData;
-    } catch (error) {
-      console.error('解析文件结构失败:', error);
-    }
-  }
-  
-  // 备用逻辑：如果没有文件结构，根据文件类型生成默认结构
-  if (portfolio.fileUrl && (portfolio.fileUrl.includes('.zip') || portfolio.fileUrl.includes('.rar'))) {
-    fileTreeData.push({
-      name: portfolio.title,
-      type: 'folder',
-      expanded: true,
-      children: [
-        { name: '项目文件', type: 'file', extension: 'zip' }
-      ]
-    });
-  } else if (portfolio.fileUrl && (portfolio.fileUrl.includes('.jpg') || portfolio.fileUrl.includes('.png') || portfolio.fileUrl.includes('.jpeg'))) {
-    fileTreeData.push({
-      name: portfolio.title,
-      type: 'file',
-      extension: portfolio.fileUrl.split('.').pop()
-    });
-  } else if (portfolio.fileUrl && portfolio.fileUrl.includes('.pdf')) {
-    fileTreeData.push({
-      name: portfolio.title,
-      type: 'file',
-      extension: 'pdf'
-    });
-  } else {
-    fileTreeData.push({
-      name: portfolio.title,
-      type: 'file',
-      extension: portfolio.fileUrl ? portfolio.fileUrl.split('.').pop() : 'file'
-    });
-  }
-  
-  return fileTreeData;
-};
-
-const toggleExpand = (node) => {
-  if (node.type === 'folder') {
-    node.expanded = !node.expanded;
-  }
-};
-
-// 递归渲染文件树
-const renderFileTree = (node, level) => {
-  return h('div', { style: { paddingLeft: `${level * 20}px` } }, [
-    h('div', { class: 'file-tree-item', onClick: () => toggleExpand(node) }, [
-      h('span', { class: 'tree-icon' }, node.type === 'folder' ? (node.expanded ? '▼' : '▶') : ''),
-      h('span', { class: 'file-icon' }, node.type === 'folder' ? '📁' : getFileIcon(node.extension)),
-      h('span', { class: 'file-name' }, node.name)
-    ]),
-    node.type === 'folder' && node.expanded && node.children ? h('div', { class: 'file-tree-children' }, [
-      node.children.map(child => renderFileTree(child, level + 1))
-    ]) : null
-  ]);
-};
-
-const getFileIcon = (extension) => {
-  const icons = {
-    'js': '📄', 'vue': '📄', 'html': '🌐', 'css': '🎨', 'scss': '🎨',
-    'md': '📝', 'json': '📋', 'xml': '📋', 'txt': '📄',
-    'jpg': '🖼️', 'png': '🖼️', 'jpeg': '🖼️', 'gif': '🎞️',
-    'pdf': '📕', 'doc': '📘', 'docx': '📘', 'xlsx': '📗',
-    'zip': '📦', 'rar': '📦', '7z': '📦',
-    'exe': '⚙️', 'dll': '⚙️', 'bat': '⚙️', 'sh': '⚙️',
-    'py': '🐍', 'java': '☕', 'cpp': '💻', 'c': '💻', 'h': '💻',
-    'sql': '🗄️', 'db': '🗄️', 'sqlite': '🗄️',
-    'default': '📄'
-  };
-  return icons[extension] || icons.default;
-};
-
-const openPortfolioDetail = (portfolio) => {
-  currentPortfolio.value = portfolio;
-  fileTree.value = generateFileTree(portfolio);
-  portfolioDetailVisible.value = true;
-};
-
-
-
-const submitPortfolio = async () => {
-  if (!portfolioForm.value.title || !portfolioForm.value.workType || !portfolioEditor.value) {
-    ElMessage.warning('请填写作品标题、类型和简介');
-    return;
-  }
-
-  const description = portfolioEditor.value.innerHTML;
-  const formData = new FormData();
-  formData.append('studentId', userStore.userInfo.userId);
-  formData.append('title', portfolioForm.value.title);
-  formData.append('workType', portfolioForm.value.workType);
-  formData.append('description', description);
-  if (portfolioFile.value) {
-    formData.append('file', portfolioFile.value);
-  }
-  if (coverFile.value) {
-    formData.append('cover', coverFile.value);
-  }
-
-  try {
-    await addPortfolio(formData);
-    ElMessage.success('上传成功');
-    portfolioDialogVisible.value = false;
-    portfolioForm.value = { title: '', workType: '', description: '' };
-    portfolioFile.value = null;
-    coverFile.value = null;
-    if (portfolioEditor.value) portfolioEditor.value.innerHTML = '';
-    fetchPortfolios();
-  } catch (error) {
-    console.error(error);
-    ElMessage.error('上传失败');
-  }
-};
-
-const deletePortfolio = async (id) => {
-  try {
-    await ElMessageBox.confirm('确定要删除这个作品吗？', '警告', { type: 'warning' });
-    await deletePortfolioApi(id);
-    ElMessage.success('删除成功');
-    fetchPortfolios();
-  } catch (e) {
-    // cancelled
-  }
-};
-
-
-
-// 实习经历相关方法
-const fetchPractices = async () => {
-  if (!userStore.userInfo?.userId) return;
-  try {
-    practices.value = await api.get(`/practice/list/${userStore.userInfo.userId}`) || [];
-  } catch {
-    ElMessage.error('获取实习经历失败');
-  }
-};
-
-const handlePracticeFileChange = (file) => {
-  practiceFile.value = file.raw;
-};
-
-const handlePracticePaste = async (e) => {
-  const items = e.clipboardData.items;
-  for (let i = 0; i< items.length; i++) {
-    const item = items[i];
-    if (item.type.indexOf('image') !== -1) {
-      e.preventDefault();
-      const file = item.getAsFile();
-      if (file) {
-        ElMessage.info('正在上传图片...');
-        
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('studentId', userStore.userInfo.userId);
-        
-        try {
-          const response = await fetch('/api/diary/upload-image', {
-            method: 'POST',
-            body: formData
-          });
-          
-          if (response.ok) {
-            const data = await response.text();
-            let imageUrl = data;
-            if (!imageUrl.startsWith('http')) {
-              imageUrl = `http://localhost:8083${imageUrl}`;
-            }
-            
-            const img = document.createElement('img');
-            img.src = imageUrl;
-            img.style.maxWidth = '100%';
-            img.style.margin = '10px 0';
-            
-            const range = window.getSelection().getRangeAt(0);
-            range.deleteContents();
-            range.insertNode(img);
-            range.collapse(false);
-            
-            const selection = window.getSelection();
-            selection.removeAllRanges();
-            selection.addRange(range);
-            
-            ElMessage.success('图片上传成功');
-          } else {
-            const errorText = await response.text();
-            ElMessage.error('图片上传失败: ' + errorText);
-          }
-        } catch (error) {
-          console.error('图片上传错误:', error);
-          ElMessage.error('图片上传失败: ' + error.message);
-        }
-      }
-      break;
-    }
-  }
-};
-
-const submitPractice = async () => {
-  if (!practiceForm.value.activityName || !practiceForm.value.organization ||
-      !practiceForm.value.startDate || !practiceForm.value.endDate) {
-    ElMessage.warning('请填写完整的实习经历信息');
-    return;
-  }
-
-  const content = practiceEditor.value ? practiceEditor.value.innerHTML : '';
-  const formData = new FormData();
-  formData.append('studentId', userStore.userInfo.userId);
-  formData.append('activityName', practiceForm.value.activityName);
-  formData.append('organization', practiceForm.value.organization);
-  formData.append('startDate', practiceForm.value.startDate);
-  formData.append('endDate', practiceForm.value.endDate);
-  formData.append('content', content);
-  if (practiceFile.value) {
-    formData.append('file', practiceFile.value);
-  }
-
-  try {
-    await api.post('/practice/upload', formData);
-    ElMessage.success('实习经历上传成功');
-    practiceDialogVisible.value = false;
-    practiceForm.value = { activityName: '', organization: '', startDate: '', endDate: '', content: '' };
-    practiceFile.value = null;
-    if (practiceEditor.value) practiceEditor.value.innerHTML = '';
-    fetchPractices();
-  } catch (error) {
-    ElMessage.error('上传失败');
-  }
-};
-
-const deletePractice = async (id) => {
-  try {
-    await ElMessageBox.confirm('确定要删除这个实习经历吗？', '警告', { type: 'warning' });
-    const response = await fetch(`/api/practice/delete/${id}`, {
-      method: 'DELETE',
-      headers: (() => { const t = sessionStorage.getItem('token'); return t ? { Authorization: `Bearer ${t}` } : {}; })()
-    });
-    
-    if (response.ok) {
-      ElMessage.success('删除成功');
-      fetchPractices();
-    } else {
-      ElMessage.error('删除失败');
-    }
-  } catch (e) {
-    // cancelled
-  }
-};
-
-// 监听标签页变化，加载对应数据
-watch(activeTab, (newTab) => {
-  if (newTab === 'portfolio') fetchPortfolios();
-  else if (newTab === 'practice') fetchPractices();
-});
 
 onMounted(() => { fetchRecords(); });
 

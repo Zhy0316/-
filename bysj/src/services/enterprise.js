@@ -18,3 +18,6 @@ export const listAllEnterprises = () => api.get('/admin/enterprise/list')
 /** 管理员：审核企业 */
 export const auditEnterprise = (userId, auditStatus) =>
   api.put('/admin/enterprise/audit', { userId, auditStatus })
+
+/** 获取当前企业认证状态（-1未注册/0待审核/1已认证/2驳回） */
+export const getAuditStatus = () => api.get('/enterprise/audit-status')

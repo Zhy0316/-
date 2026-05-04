@@ -4,15 +4,12 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.example.archivemanagement.dto.LoginDTO;
 import com.example.archivemanagement.dto.RegisterDTO;
 import com.example.archivemanagement.dto.UserInfoDTO;
-import com.example.archivemanagement.entity.SysRole;
-import com.example.archivemanagement.entity.SysUser;
-import com.example.archivemanagement.entity.SysUserRole;
-import com.example.archivemanagement.mapper.SysRoleMapper;
-import com.example.archivemanagement.mapper.SysUserMapper;
-import com.example.archivemanagement.mapper.SysUserRoleMapper;
+import com.example.archivemanagement.entity.*;
+import com.example.archivemanagement.mapper.*;
 import com.example.archivemanagement.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.DigestUtils;
 
 import java.time.LocalDateTime;
@@ -25,6 +22,8 @@ public class UserService {
     private final SysUserMapper userMapper;
     private final SysRoleMapper roleMapper;
     private final SysUserRoleMapper userRoleMapper;
+    private final InfoStudentMapper studentMapper;
+    private final InfoTutorMapper tutorMapper;
     private final JwtUtil jwtUtil;
 
     /**
@@ -48,8 +47,9 @@ public class UserService {
     }
 
     /**
-     * 注册：创建用户并绑定角色
+     * 注册：创建用户并绑定角色，并创建对应的学生/导师记录
      */
+    @Transactional(rollbackFor = Exception.class)
     public boolean register(RegisterDTO registerDTO) {
         QueryWrapper<SysUser> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("username", registerDTO.getUsername());
@@ -77,6 +77,22 @@ public class UserService {
                 userRole.setUserId(user.getUserId());
                 userRole.setRoleId(role.getRoleId());
                 userRoleMapper.insert(userRole);
+            }
+
+            // 根据角色创建对应的学生/导师记录，同步 realName
+            String roleKey = registerDTO.getRoleKey();
+            if ("student".equals(roleKey)) {
+                InfoStudent student = new InfoStudent();
+                student.setUserId(user.getUserId());
+                student.setRealName(user.getRealName());
+                // 如果有学号也可以在这里设置，或者留空
+                student.setStudentNo(registerDTO.getStudentNo());
+                studentMapper.insert(student);
+            } else if ("tutor".equals(roleKey)) {
+                InfoTutor tutor = new InfoTutor();
+                tutor.setUserId(user.getUserId());
+                tutor.setRealName(user.getRealName());
+                tutorMapper.insert(tutor);
             }
             return true;
         }

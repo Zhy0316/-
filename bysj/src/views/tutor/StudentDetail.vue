@@ -2,7 +2,15 @@
   <div>
     <el-page-header @back="$router.back()" style="margin-bottom:20px">
       <template #content>
-        <span>{{ profile?.realName || '学生' }} 的档案</span>
+        <div class="student-header">
+          <el-avatar :size="48" :src="avatarUrl" class="student-avatar">
+            {{ profile?.realName?.charAt(0) || '学生' }}
+          </el-avatar>
+          <span>{{ profile?.realName || '学生' }} 的档案</span>
+        </div>
+      </template>
+      <template #extra>
+        <el-button type="primary" :icon="ChatDotRound" @click="contactStudent">发消息</el-button>
       </template>
     </el-page-header>
 
@@ -156,23 +164,95 @@
 
       <!-- ===== 成长日记 ===== -->
       <el-tab-pane label="成长日记" name="diary">
-        <el-timeline v-if="diaries.length">
-          <el-timeline-item v-for="d in diaries" :key="d.id"
-            :timestamp="d.recordDate || d.createTime" placement="top">
+        <el-row :gutter="16">
+          <!-- 左侧：日记列表 -->
+          <el-col :span="selectedDiary ? 8 : 24">
+            <div v-if="diaries.length">
+              <el-card
+                v-for="d in diaries" :key="d.id"
+                style="margin-bottom:10px;cursor:pointer"
+                :class="{ 'diary-selected': selectedDiary?.id === d.id }"
+                shadow="hover"
+                @click="openDiaryDetail(d)"
+              >
+                <div style="font-weight:600;margin-bottom:4px">
+                  {{ d.title }}
+                  <el-tag v-if="d.mood" size="small" style="margin-left:8px">{{ d.mood }}</el-tag>
+                </div>
+                <div style="color:#909399;font-size:12px">
+                  {{ d.recordDate ? new Date(d.recordDate).toLocaleDateString() : '' }}
+                </div>
+                <div style="color:#606266;font-size:13px;margin-top:6px"
+                  v-html="(d.content || '').replace(/<[^>]+>/g,'').slice(0,80) + '...'"></div>
+              </el-card>
+            </div>
+            <el-empty v-else description="暂无公开日记" />
+          </el-col>
+
+          <!-- 右侧：日记详情 + 批注 -->
+          <el-col v-if="selectedDiary" :span="16">
             <el-card>
-              <div style="font-weight:600;margin-bottom:6px">
-                {{ d.title }}
-                <el-tag v-if="d.mood" size="small" style="margin-left:8px">{{ d.mood }}</el-tag>
-              </div>
-              <div style="color:#606266;font-size:13px" v-html="d.content?.slice(0,200)"></div>
-              <el-link v-if="d.attachmentPath" :href="fileUrl(d.attachmentPath)"
-                target="_blank" type="primary" size="small" style="margin-top:6px">
+              <template #header>
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                  <span style="font-weight:600;font-size:16px">{{ selectedDiary.title }}</span>
+                  <el-button size="small" text @click="selectedDiary = null">关闭</el-button>
+                </div>
+                <div style="color:#909399;font-size:12px;margin-top:4px">
+                  {{ selectedDiary.recordDate ? new Date(selectedDiary.recordDate).toLocaleDateString() : '' }}
+                  <el-tag v-if="selectedDiary.mood" size="small" style="margin-left:8px">{{ selectedDiary.mood }}</el-tag>
+                </div>
+              </template>
+
+              <!-- 日记正文 -->
+              <div class="diary-full-content" v-html="selectedDiary.content"></div>
+              <el-link v-if="selectedDiary.attachmentPath"
+                :href="fileUrl(selectedDiary.attachmentPath)" target="_blank"
+                type="primary" size="small" style="margin-top:8px">
                 查看附件
               </el-link>
+
+              <el-divider content-position="left">导师批注（{{ diaryComments.length }} 条）</el-divider>
+
+              <!-- 已有批注 -->
+              <div v-if="diaryComments.length" style="margin-bottom:16px">
+                <div v-for="c in diaryComments" :key="c.id"
+                  style="background:#f8f9fa;border-radius:6px;padding:12px;margin-bottom:8px">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                    <span style="font-size:12px;color:#909399">
+                      {{ c.createTime ? new Date(c.createTime).toLocaleString() : '' }}
+                    </span>
+                    <div style="display:flex;gap:6px">
+                      <el-button size="small" text @click="startEditDiaryComment(c)">编辑</el-button>
+                      <el-button size="small" text type="danger" @click="handleDeleteComment(c.id)">删除</el-button>
+                    </div>
+                  </div>
+                  <div class="comment-body" v-html="c.content"></div>
+                </div>
+              </div>
+
+              <!-- 追加批注输入框 -->
+              <div>
+                <div style="font-size:13px;color:#606266;margin-bottom:8px;font-weight:500">
+                  {{ editingDiaryCommentId ? '编辑批注' : '追加批注' }}
+                </div>
+                <WangEditor
+                  ref="diaryCommentEditorRef"
+                  v-model="diaryCommentContent"
+                  height="180px"
+                />
+                <div style="margin-top:10px;display:flex;gap:8px">
+                  <el-button type="primary" size="small" :loading="diaryCommentLoading"
+                    @click="submitDiaryComment">
+                    {{ editingDiaryCommentId ? '保存修改' : '提交批注' }}
+                  </el-button>
+                  <el-button v-if="editingDiaryCommentId" size="small" @click="cancelDiaryCommentEdit">
+                    取消
+                  </el-button>
+                </div>
+              </div>
             </el-card>
-          </el-timeline-item>
-        </el-timeline>
-        <el-empty v-else description="暂无公开日记" />
+          </el-col>
+        </el-row>
       </el-tab-pane>
 
       <!-- ===== 作品集 ===== -->
@@ -226,87 +306,28 @@
         <el-empty v-if="!growthScores.length" description="暂无成长评分数据" />
       </el-tab-pane>
 
-      <!-- ===== 添加评语 ===== -->
-      <el-tab-pane label="添加评语" name="comment">
-
-        <!-- 新建/编辑评语表单 -->
+      <!-- ===== 综合评价 ===== -->
+      <el-tab-pane label="综合评价" name="comment">
         <el-card style="margin-bottom:20px">
           <template #header>
-            <span>{{ editingCommentId ? '编辑评语' : '撰写新评语' }}</span>
+            <span>{{ editingCommentId ? '编辑综合评价' : '撰写综合评价' }}</span>
           </template>
-
-          <el-form label-width="80px">
-            <el-form-item label="评语类型">
-              <el-radio-group v-model="commentForm.targetType" @change="onCommentTypeChange">
-                <el-radio-button value="GENERAL">综合评价</el-radio-button>
-                <el-radio-button value="DIARY">日记批注</el-radio-button>
-                <el-radio-button value="PORTFOLIO">作品点评</el-radio-button>
-              </el-radio-group>
-            </el-form-item>
-
-            <!-- 日记批注：选择具体日记 -->
-            <el-form-item v-if="commentForm.targetType === 'DIARY'" label="选择日记">
-              <el-select v-model="commentForm.targetId" placeholder="请选择要批注的日记"
-                style="width:100%" v-loading="targetLoading">
-                <el-option v-for="d in diaries" :key="d.id"
-                  :label="`${d.title}（${d.recordDate ? new Date(d.recordDate).toLocaleDateString() : ''}）`"
-                  :value="d.id" />
-                <template #empty>
-                  <div style="padding:12px;color:#909399;text-align:center">暂无公开日记</div>
-                </template>
-              </el-select>
-            </el-form-item>
-
-            <!-- 作品点评：选择具体作品 -->
-            <el-form-item v-if="commentForm.targetType === 'PORTFOLIO'" label="选择作品">
-              <el-select v-model="commentForm.targetId" placeholder="请选择要点评的作品"
-                style="width:100%" v-loading="targetLoading">
-                <el-option v-for="p in portfolios" :key="p.id"
-                  :label="`${p.title}（${p.workType}）`"
-                  :value="p.id" />
-                <template #empty>
-                  <div style="padding:12px;color:#909399;text-align:center">暂无作品</div>
-                </template>
-              </el-select>
-            </el-form-item>
-
-            <el-form-item label="评语内容">
-              <WangEditor
-                ref="commentEditorRef"
-                v-model="commentForm.htmlContent"
-                height="260px"
-              />
-            </el-form-item>
-
-            <el-form-item>
-              <el-button type="primary" :loading="commentLoading" @click="submitComment">
-                {{ editingCommentId ? '保存修改' : '提交评语' }}
-              </el-button>
-              <el-button v-if="editingCommentId" @click="cancelEditComment">取消编辑</el-button>
-            </el-form-item>
-          </el-form>
+          <WangEditor ref="commentEditorRef" v-model="commentForm.htmlContent" height="260px" />
+          <div style="margin-top:12px;display:flex;gap:8px">
+            <el-button type="primary" :loading="commentLoading" @click="submitComment">
+              {{ editingCommentId ? '保存修改' : '提交评价' }}
+            </el-button>
+            <el-button v-if="editingCommentId" @click="cancelEditComment">取消编辑</el-button>
+          </div>
         </el-card>
 
-        <!-- 历史评语列表 -->
-        <el-divider content-position="left">历史评语（{{ comments.length }} 条）</el-divider>
-        <div v-if="comments.length">
-          <el-card v-for="c in comments" :key="c.id" style="margin-bottom:12px" shadow="hover">
+        <el-divider content-position="left">历史综合评价（{{ generalComments.length }} 条）</el-divider>
+        <div v-if="generalComments.length">
+          <el-card v-for="c in generalComments" :key="c.id" style="margin-bottom:12px" shadow="hover">
             <div style="display:flex;justify-content:space-between;align-items:flex-start">
               <div style="flex:1">
-                <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
-                  <el-tag size="small" :type="commentTypeMap[c.targetType]?.type">
-                    {{ commentTypeMap[c.targetType]?.label || c.targetType }}
-                  </el-tag>
-                  <!-- 关联的日记/作品标题 -->
-                  <span v-if="c.targetType === 'DIARY' && c.targetId" style="font-size:12px;color:#909399">
-                    批注日记：{{ diaries.find(d=>d.id===c.targetId)?.title || '#'+c.targetId }}
-                  </span>
-                  <span v-if="c.targetType === 'PORTFOLIO' && c.targetId" style="font-size:12px;color:#909399">
-                    点评作品：{{ portfolios.find(p=>p.id===c.targetId)?.title || '#'+c.targetId }}
-                  </span>
-                  <span style="font-size:12px;color:#c0c4cc;margin-left:auto">
-                    {{ c.createTime ? new Date(c.createTime).toLocaleString() : '' }}
-                  </span>
+                <div style="font-size:12px;color:#c0c4cc;margin-bottom:8px">
+                  {{ c.createTime ? new Date(c.createTime).toLocaleString() : '' }}
                 </div>
                 <div class="comment-body" v-html="c.content"></div>
               </div>
@@ -317,7 +338,7 @@
             </div>
           </el-card>
         </div>
-        <el-empty v-else description="暂无评语记录" />
+        <el-empty v-else description="暂无综合评价记录" />
       </el-tab-pane>
 
     </el-tabs>
@@ -326,20 +347,32 @@
 
 <script setup>
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '../../stores/user.js'
 import api from '../../services/api.js'
 import { saveComment, getCommentList, updateComment, deleteComment } from '../../services/comment.js'
+import messageApi from '../../services/message.js'
 import * as echarts from 'echarts'
 import WangEditor from '../../components/WangEditor.vue'
+import { ChatDotRound } from '@element-plus/icons-vue'
 
 const route = useRoute()
+const router = useRouter()
 const userStore = useUserStore()
 const studentId = Number(route.params.id)
 
 const activeTab = ref('profile')
 const profile     = ref(null)
+
+const avatarUrl = computed(() => {
+  if (profile.value?.avatar) {
+    return profile.value.avatar.startsWith('http')
+      ? profile.value.avatar
+      : `http://localhost:8083${profile.value.avatar}`
+  }
+  return ''
+})
 const academics   = ref([])
 const awards      = ref([])
 const researches  = ref([])
@@ -353,6 +386,17 @@ const commentForm = ref({ targetType: 'GENERAL', targetId: null, htmlContent: ''
 const editingCommentId = ref(null)
 const targetLoading = ref(false)
 const commentEditorRef = ref(null)
+
+// 综合评价（只显示 GENERAL 类型）
+const generalComments = computed(() => comments.value.filter(c => c.targetType === 'GENERAL'))
+
+// ===== 日记详情 & 批注 =====
+const selectedDiary = ref(null)
+const diaryComments = ref([])
+const diaryCommentContent = ref('')
+const diaryCommentLoading = ref(false)
+const editingDiaryCommentId = ref(null)
+const diaryCommentEditorRef = ref(null)
 
 const commentTypeMap = {
   GENERAL:   { label: '综合评价', type: '' },
@@ -471,49 +515,34 @@ const auditAward = async (id, status) => {
 // ===== 评语类型切换 =====
 const onCommentTypeChange = () => { commentForm.value.targetId = null }
 
-// ===== 开始编辑评语 =====
+// ===== 综合评价：开始编辑 =====
 const startEditComment = (c) => {
   editingCommentId.value = c.id
-  commentForm.value.targetType = c.targetType
-  commentForm.value.targetId = c.targetId || null
   commentForm.value.htmlContent = c.content || ''
   nextTick(() => { if (commentEditorRef.value) commentEditorRef.value.setHtml(c.content || '') })
-  // 滚动到表单
-  document.querySelector('.wang-editor-wrapper')?.scrollIntoView({ behavior: 'smooth' })
 }
 
 const cancelEditComment = () => {
   editingCommentId.value = null
-  commentForm.value = { targetType: 'GENERAL', targetId: null, htmlContent: '' }
+  commentForm.value.htmlContent = ''
   nextTick(() => { if (commentEditorRef.value) commentEditorRef.value.setHtml('') })
 }
 
-// ===== 提交评语（新建或编辑） =====
+// ===== 综合评价：提交 =====
 const submitComment = async () => {
   const content = commentEditorRef.value?.getHtml() || commentForm.value.htmlContent
-  if (!content || content === '<p><br></p>') return ElMessage.warning('请输入评语内容')
-  if (commentForm.value.targetType === 'DIARY' && !commentForm.value.targetId) {
-    return ElMessage.warning('请选择要批注的日记')
-  }
-  if (commentForm.value.targetType === 'PORTFOLIO' && !commentForm.value.targetId) {
-    return ElMessage.warning('请选择要点评的作品')
-  }
+  if (!content || content === '<p><br></p>') return ElMessage.warning('请输入评价内容')
   commentLoading.value = true
   try {
     if (editingCommentId.value) {
       await updateComment(editingCommentId.value, content)
-      ElMessage.success('评语修改成功')
+      ElMessage.success('修改成功')
       editingCommentId.value = null
     } else {
-      await saveComment({
-        studentId,
-        targetType: commentForm.value.targetType,
-        targetId: commentForm.value.targetId || null,
-        content
-      })
-      ElMessage.success('评语提交成功')
+      await saveComment({ studentId, targetType: 'GENERAL', content })
+      ElMessage.success('评价提交成功')
     }
-    commentForm.value = { targetType: 'GENERAL', targetId: null, htmlContent: '' }
+    commentForm.value.htmlContent = ''
     nextTick(() => { if (commentEditorRef.value) commentEditorRef.value.setHtml('') })
     comments.value = await getCommentList(studentId) || []
   } catch { /* api.js 已弹错误 */ } finally {
@@ -527,12 +556,85 @@ const handleDeleteComment = async (id) => {
   await deleteComment(id)
   ElMessage.success('删除成功')
   comments.value = await getCommentList(studentId) || []
+  // 同步刷新日记批注
+  if (selectedDiary.value) {
+    diaryComments.value = comments.value.filter(
+      c => c.targetType === 'DIARY' && c.targetId === selectedDiary.value.id
+    )
+  }
+}
+
+// ===== 日记详情 =====
+const openDiaryDetail = (diary) => {
+  selectedDiary.value = diary
+  editingDiaryCommentId.value = null
+  diaryCommentContent.value = ''
+  nextTick(() => { if (diaryCommentEditorRef.value) diaryCommentEditorRef.value.setHtml('') })
+  // 过滤出该日记的批注
+  diaryComments.value = comments.value.filter(
+    c => c.targetType === 'DIARY' && c.targetId === diary.id
+  )
+}
+
+// ===== 日记批注：开始编辑 =====
+const startEditDiaryComment = (c) => {
+  editingDiaryCommentId.value = c.id
+  diaryCommentContent.value = c.content || ''
+  nextTick(() => { if (diaryCommentEditorRef.value) diaryCommentEditorRef.value.setHtml(c.content || '') })
+}
+
+const cancelDiaryCommentEdit = () => {
+  editingDiaryCommentId.value = null
+  diaryCommentContent.value = ''
+  nextTick(() => { if (diaryCommentEditorRef.value) diaryCommentEditorRef.value.setHtml('') })
+}
+
+// ===== 日记批注：提交 =====
+const submitDiaryComment = async () => {
+  const content = diaryCommentEditorRef.value?.getHtml() || diaryCommentContent.value
+  if (!content || content === '<p><br></p>') return ElMessage.warning('请输入批注内容')
+  diaryCommentLoading.value = true
+  try {
+    if (editingDiaryCommentId.value) {
+      await updateComment(editingDiaryCommentId.value, content)
+      ElMessage.success('批注修改成功')
+      editingDiaryCommentId.value = null
+    } else {
+      await saveComment({
+        studentId,
+        targetType: 'DIARY',
+        targetId: selectedDiary.value.id,
+        content
+      })
+      ElMessage.success('批注提交成功')
+    }
+    diaryCommentContent.value = ''
+    nextTick(() => { if (diaryCommentEditorRef.value) diaryCommentEditorRef.value.setHtml('') })
+    // 刷新全部评语并更新日记批注
+    comments.value = await getCommentList(studentId) || []
+    diaryComments.value = comments.value.filter(
+      c => c.targetType === 'DIARY' && c.targetId === selectedDiary.value.id
+    )
+  } catch { /* api.js 已弹错误 */ } finally {
+    diaryCommentLoading.value = false
+  }
 }
 
 onMounted(async () => {
   await loadAll()
   renderCharts()
 })
+
+// ===== 联系学生 =====
+const contactStudent = async () => {
+  try {
+    await messageApi.send(studentId, `你好，我是你的导师，有事想和你沟通。`)
+    ElMessage.success('消息已发送')
+    router.push('/tutor/message')
+  } catch {
+    ElMessage.error('发送失败，请稍后重试')
+  }
+}
 </script>
 
 <style scoped>
@@ -541,4 +643,9 @@ onMounted(async () => {
 .stat-val { font-size: 28px; font-weight: bold; color: #303133; }
 .comment-body { line-height: 1.7; color: #303133; font-size: 14px; }
 .comment-body img { max-width: 100%; border-radius: 4px; }
+.diary-selected { border: 2px solid #409EFF !important; }
+.diary-full-content { line-height: 1.8; color: #303133; font-size: 15px; min-height: 80px; }
+.diary-full-content img { max-width: 100%; border-radius: 6px; margin: 8px 0; }
+.student-header { display: flex; align-items: center; gap: 12px; }
+.student-avatar { flex-shrink: 0; background: #409EFF; }
 </style>

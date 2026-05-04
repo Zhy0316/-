@@ -8,13 +8,17 @@
         SELECT
             a.id            AS applicationId,
             a.status        AS status,
+            a.final_status  AS finalStatus,
             a.message       AS message,
             a.apply_time    AS applyTime,
+            a.interview_time AS interviewTime,
+            a.interview_note AS interviewNote,
             r.id            AS recruitmentId,
             r.title         AS title,
             r.position      AS position,
             r.salary_range  AS salaryRange,
             r.location      AS location,
+            r.enterprise_id AS hrUserId,
             e.company_name  AS companyName
         FROM bus_job_application a
         LEFT JOIN bus_recruitment r ON r.id = a.recruitment_id
@@ -28,9 +32,12 @@
         SELECT
             a.id            AS applicationId,
             a.status        AS status,
+            a.final_status  AS finalStatus,
             a.message       AS message,
             a.apply_time    AS applyTime,
-            u.user_id       AS studentId,
+            a.interview_time AS interviewTime,
+            a.interview_note AS interviewNote,
+            u.user_id       AS studentUserId,
             u.real_name     AS realName,
             s.student_no    AS studentNo,
             s.college       AS college,

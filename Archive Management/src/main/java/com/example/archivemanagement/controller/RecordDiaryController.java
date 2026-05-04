@@ -93,6 +93,8 @@ public class RecordDiaryController {
             @RequestParam("title") String title,
             @RequestParam("content") String content,
             @RequestParam(value = "mood", required = false) String mood,
+            @RequestParam(value = "isMilestone", required = false, defaultValue = "0") Integer isMilestone,
+            @RequestParam(value = "tutorVisible", required = false, defaultValue = "0") Integer tutorVisible,
             @RequestParam(value = "visibility", required = false, defaultValue = "1") Integer visibility,
             @RequestParam(value = "isStarred", required = false, defaultValue = "0") Integer isStarred,
             @RequestParam(value = "category", required = false) String category,
@@ -108,6 +110,8 @@ public class RecordDiaryController {
         diary.setTitle(title);
         diary.setContent(content);
         diary.setMood(mood);
+        diary.setIsMilestone(isMilestone);
+        diary.setTutorVisible(tutorVisible);
         diary.setVisibility(visibility);
         diary.setIsStarred(isStarred);
         diary.setCategory(category);
@@ -128,13 +132,15 @@ public class RecordDiaryController {
         RecordDiary diary = service.getById(id);
         if (diary == null) throw BusinessException.notFound("日记不存在");
         if (!diary.getStudentId().equals(callerId)) throw BusinessException.forbidden("无权修改他人日记");
-        if (body.containsKey("title"))      diary.setTitle(body.get("title").toString());
-        if (body.containsKey("content"))    diary.setContent(body.get("content").toString());
-        if (body.containsKey("mood"))       diary.setMood(body.get("mood").toString());
-        if (body.containsKey("visibility")) diary.setVisibility(Integer.valueOf(body.get("visibility").toString()));
-        if (body.containsKey("isStarred"))  diary.setIsStarred(Integer.valueOf(body.get("isStarred").toString()));
-        if (body.containsKey("category"))   diary.setCategory(body.get("category").toString());
-        if (body.containsKey("tags"))       diary.setTags(body.get("tags").toString());
+        if (body.containsKey("title"))         diary.setTitle(body.get("title").toString());
+        if (body.containsKey("content"))       diary.setContent(body.get("content").toString());
+        if (body.containsKey("mood"))          diary.setMood(body.get("mood").toString());
+        if (body.containsKey("isMilestone"))   diary.setIsMilestone(Integer.valueOf(body.get("isMilestone").toString()));
+        if (body.containsKey("tutorVisible"))  diary.setTutorVisible(Integer.valueOf(body.get("tutorVisible").toString()));
+        if (body.containsKey("visibility"))    diary.setVisibility(Integer.valueOf(body.get("visibility").toString()));
+        if (body.containsKey("isStarred"))     diary.setIsStarred(Integer.valueOf(body.get("isStarred").toString()));
+        if (body.containsKey("category"))      diary.setCategory(body.get("category").toString());
+        if (body.containsKey("tags"))          diary.setTags(body.get("tags").toString());
         service.updateById(diary);
         return Result.ok("更新成功");
     }

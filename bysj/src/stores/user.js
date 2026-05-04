@@ -24,6 +24,14 @@ export const useUserStore = defineStore('user', () => {
     sessionStorage.removeItem('userInfo')
   }
 
+  /** 更新用户头像 */
+  const updateAvatar = (avatarUrl) => {
+    if (userInfo.value) {
+      userInfo.value.avatar = avatarUrl
+      sessionStorage.setItem('userInfo', JSON.stringify(userInfo.value))
+    }
+  }
+
   /** 应用启动时从 sessionStorage 恢复状态（刷新时保持登录） */
   const loadFromStorage = () => {
     const stored = sessionStorage.getItem('userInfo')
@@ -48,6 +56,7 @@ export const useUserStore = defineStore('user', () => {
     roleKey,
     login,
     logout,
+    updateAvatar,
     loadFromStorage,
     setUser,
     clearUser,

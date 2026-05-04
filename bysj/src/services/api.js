@@ -3,7 +3,7 @@ import { ElMessage } from 'element-plus'
 
 const api = axios.create({
   baseURL: 'http://localhost:8083/api',
-  timeout: 15000
+  timeout: 60000  // 文件上传可能较慢，改为 60 秒
 })
 
 // 请求拦截器：自动携带 JWT Token

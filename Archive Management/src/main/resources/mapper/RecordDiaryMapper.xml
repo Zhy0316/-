@@ -13,6 +13,13 @@
         )
     </insert>
 
+    <!-- 根据学生ID查询所有日记 -->
+    <select id="selectByStudentId" resultType="com.example.archivemanagement.entity.RecordDiary">
+        SELECT * FROM record_diary
+        WHERE student_id = #{studentId}
+        ORDER BY record_date DESC, create_time DESC
+    </select>
+
     <!-- 带筛选条件的查询：支持日期范围、星标、分组、标签 -->
     <select id="selectByStudentIdAndDateRange" resultType="com.example.archivemanagement.entity.RecordDiary">
         SELECT * FROM record_diary

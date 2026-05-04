@@ -32,6 +32,12 @@ public class InfoStudent {
     private String nativePlace;
     
     private LocalDate birthDate;
+    
+    private String realName;
+    
+    private Integer grade;
+
+    private String avatar;
 
     // Getters and Setters
     public Long getUserId() {
@@ -128,5 +134,29 @@ public class InfoStudent {
 
     public void setBirthDate(LocalDate birthDate) {
         this.birthDate = birthDate;
+    }
+
+    public String getRealName() {
+        return realName;
+    }
+
+    public void setRealName(String realName) {
+        this.realName = realName;
+    }
+
+    public Integer getGrade() {
+        return grade;
+    }
+
+    public void setGrade(Integer grade) {
+        this.grade = grade;
+    }
+
+    public String getAvatar() {
+        return avatar;
+    }
+
+    public void setAvatar(String avatar) {
+        this.avatar = avatar;
     }
 }

@@ -8,6 +8,27 @@
         </div>
       </template>
       <el-form :model="form" label-width="120px" :rules="rules" ref="formRef">
+        <el-row :gutter="20">
+          <el-col :span="24">
+            <el-form-item label="头像">
+              <div class="avatar-section">
+                <el-avatar :size="80" :src="avatarUrl" class="avatar-preview">
+                  {{ form.realName?.charAt(0) || '用户' }}
+                </el-avatar>
+                <div class="avatar-upload">
+                  <input type="file" ref="avatarInput" @change="handleAvatarChange" accept="image/*" style="display:none" />
+                  <el-button size="small" @click="triggerAvatarInput" :loading="uploadingAvatar">
+                    <el-icon><Upload /></el-icon> 上传头像
+                  </el-button>
+                  <div class="avatar-tip">支持 JPG/PNG，建议尺寸 200x200</div>
+                </div>
+              </div>
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-divider />
+
         <!-- 基本账户信息 (不可修改或部分可修改) -->
         <el-row :gutter="20">
           <el-col :span="12">
@@ -17,7 +38,7 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="真实姓名" prop="realName">
-              <el-input v-model="form.realName"></el-input>
+              <el-input v-model="form.realName" disabled></el-input>
             </el-form-item>
           </el-col>
         </el-row>
@@ -111,6 +132,24 @@
           </el-col>
         </el-row>
 
+        <!-- 被驳回状态 -->
+        <el-row v-else-if="rejectedRelation" :gutter="20" style="margin-bottom:8px">
+          <el-col :span="24">
+            <el-form-item label="绑定状态">
+              <el-alert type="error" :closable="false" title="申请被驳回">
+                <template #default>
+                  <div v-if="rejectedRelation.rejectNote" style="margin-top:8px">
+                    <strong>驳回原因：</strong>{{ rejectedRelation.rejectNote }}
+                  </div>
+                  <div style="margin-top:10px">
+                    <el-button type="primary" @click="showResubmitDialog">重新提交申请</el-button>
+                  </div>
+                </template>
+              </el-alert>
+            </el-form-item>
+          </el-col>
+        </el-row>
+
         <!-- 未绑定：展示导师列表供选择 -->
         <template v-else>
           <el-row :gutter="20" style="margin-bottom:8px">
@@ -197,13 +236,60 @@
 
       </el-form>
     </el-card>
+
+    <!-- 申请绑定导师对话框 -->
+    <el-dialog
+      v-model="applyDialogVisible"
+      :title="rejectedRelation ? '重新提交申请' : '申请绑定导师'"
+      width="600px"
+      :before-close="handleApplyDialogClose"
+    >
+      <el-form :model="applyForm" label-width="100px">
+        <el-form-item label="导师">
+          <el-input :value="selectedTutor ? selectedTutor.realName : ''" disabled></el-input>
+        </el-form-item>
+        <el-form-item label="自荐信" prop="applyNote">
+          <el-input
+            v-model="applyForm.applyNote"
+            type="textarea"
+            :rows="6"
+            placeholder="请描述您申请该导师的原因、目标、学习计划等"
+            maxlength="1000"
+            show-word-limit
+          ></el-input>
+        </el-form-item>
+        <el-form-item label="附件">
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <input type="file" ref="attachFileInput" @change="handleAttachFileChange" style="display: none" />
+            <div>
+               <el-button type="primary" size="small" @click="triggerAttachFileInput">选择附件</el-button>
+               <span v-if="selectedAttachFile" style="margin-left: 15px; font-size: 13px; color: #666;">
+                 已选择: {{ selectedAttachFile.name }}
+               </span>
+            </div>
+            <div v-if="rejectedRelation && rejectedRelation.attachFile && !selectedAttachFile" style="font-size: 12px; color: #909399;">
+              当前附件: <a :href="getAttachmentUrl(rejectedRelation.attachFile)" target="_blank" style="color: #409EFF;">预览/下载</a>
+            </div>
+            <div v-if="selectedAttachFile" style="font-size: 12px; color: #909399;">
+              文件大小: {{ (selectedAttachFile.size / 1024).toFixed(2) }} KB
+            </div>
+          </div>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="applyDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="rejectedRelation ? submitResubmit() : submitApply()" :loading="applySubmitting">
+          {{ rejectedRelation ? '重新提交' : '提交申请' }}
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search } from '@element-plus/icons-vue'
+import { Search, Upload } from '@element-plus/icons-vue'
 import { studentAPI } from '../../services/student.js'
 import { api } from '../../services/api.js'
 import { useUserStore } from '../../stores/user.js'
@@ -213,6 +299,70 @@ const formRef = ref(null)
 const loading = ref(false)
 const fileInput = ref(null)
 const selectedFile = ref(null)
+const avatarInput = ref(null)
+const selectedAvatar = ref(null)
+const uploadingAvatar = ref(false)
+
+// 申请绑定对话框相关
+const applyDialogVisible = ref(false)
+const applySubmitting = ref(false)
+const selectedTutor = ref(null)
+const attachFileInput = ref(null)
+const selectedAttachFile = ref(null)
+const applyForm = reactive({
+  applyNote: ''
+})
+
+// 头像相关
+const triggerAvatarInput = () => avatarInput.value.click()
+
+const handleAvatarChange = (e) => {
+  if (e.target.files.length > 0) {
+    const file = e.target.files[0]
+    if (!file.type.startsWith('image/')) {
+      ElMessage.error('请选择图片文件')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      ElMessage.error('头像大小不能超过 5MB')
+      return
+    }
+    selectedAvatar.value = file
+    uploadAvatar()
+  }
+}
+
+const uploadAvatar = async () => {
+  if (!selectedAvatar.value) return
+  const userId = userStore.userInfo?.userId
+  if (!userId) return
+
+  uploadingAvatar.value = true
+  try {
+    const formData = new FormData()
+    formData.append('file', selectedAvatar.value)
+    const res = await studentAPI.uploadAvatar(formData)
+    const avatarPath = res?.filePath || res?.avatar || res
+    form.avatar = avatarPath
+    userStore.updateAvatar(avatarPath)
+    ElMessage.success('头像上传成功')
+    selectedAvatar.value = null
+  } catch {
+    ElMessage.error('头像上传失败')
+  } finally {
+    uploadingAvatar.value = false
+  }
+}
+
+const avatarUrl = computed(() => {
+  if (selectedAvatar.value) {
+    return URL.createObjectURL(selectedAvatar.value)
+  }
+  if (form.avatar) {
+    return form.avatar.startsWith('http') ? form.avatar : `http://localhost:8083${form.avatar}`
+  }
+  return ''
+})
 
 // ===== 导师绑定相关 =====
 const tutors = ref([])
@@ -220,6 +370,7 @@ const tutorLoading = ref(false)
 const tutorKeyword = ref('')
 const boundTutor = ref(null)       // 已绑定的导师信息
 const pendingRelation = ref(null)  // 待审核的申请
+const rejectedRelation = ref(null) // 被驳回的申请
 
 const filteredTutors = computed(() => {
   if (!tutorKeyword.value) return tutors.value
@@ -246,7 +397,8 @@ const form = reactive({
   politicalStatus: '',
   nation: '',
   nativePlace: '',
-  birthDate: ''
+  birthDate: '',
+  avatar: ''
 })
 
 const politicalOptions = ['中共党员', '中共预备党员', '共青团员', '群众', '其它']
@@ -294,31 +446,113 @@ const loadRelations = async () => {
     if (bound) {
       const t = tutors.value.find(t => t.userId === bound.tutorId)
       boundTutor.value = t || { realName: '导师' + bound.tutorId, title: '', researchField: '' }
+      pendingRelation.value = null
+      rejectedRelation.value = null
       return
     }
     const pending = relations.find(r => r.status === 0)
     if (pending) {
       const t = tutors.value.find(t => t.userId === pending.tutorId)
       pendingRelation.value = { ...pending, tutorName: t?.realName }
+      rejectedRelation.value = null
+      return
+    }
+    const rejected = relations.find(r => r.status === 2)
+    if (rejected) {
+      const t = tutors.value.find(t => t.userId === rejected.tutorId)
+      rejectedRelation.value = { ...rejected, tutorName: t?.realName }
+      pendingRelation.value = null
     }
   } catch { /* 忽略 */ }
 }
 
-// ===== 申请绑定导师 =====
-const applyBind = async (tutor) => {
+// ===== 显示重新提交对话框 =====
+const showResubmitDialog = () => {
+  selectedTutor.value = tutors.value.find(t => t.userId === rejectedRelation.value.tutorId)
+  applyForm.applyNote = rejectedRelation.value.applyNote || ''
+  selectedAttachFile.value = null
+  applyDialogVisible.value = true
+}
+
+// ===== 重新提交申请 =====
+const submitResubmit = async () => {
+  applySubmitting.value = true
   try {
-    await ElMessageBox.confirm(
-      `确定申请绑定导师「${tutor.realName}」吗？提交后需等待导师审核。`,
-      '申请确认', { type: 'info' }
-    )
-    await api.post('/relation/apply', {
-      studentId: userStore.userInfo.userId,
-      tutorId: tutor.userId
+    const formData = new FormData()
+    if (applyForm.applyNote) {
+      formData.append('applyNote', applyForm.applyNote)
+    }
+    if (selectedAttachFile.value) {
+      formData.append('attachFile', selectedAttachFile.value)
+    }
+    
+    await api.put(`/relation/resubmit/${rejectedRelation.value.id}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
     })
-    ElMessage.success('申请已发送，等待导师审核')
-    pendingRelation.value = { tutorName: tutor.realName }
+    
+    ElMessage.success('重新提交成功，等待导师审核')
+    pendingRelation.value = { tutorName: rejectedRelation.value.tutorName }
+    rejectedRelation.value = null
+    applyDialogVisible.value = false
+    handleApplyDialogClose()
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error(e?.response?.data || '申请失败，可能已存在绑定关系')
+    ElMessage.error(e?.response?.data || '重新提交失败')
+  } finally {
+    applySubmitting.value = false
+  }
+}
+
+// ===== 申请绑定导师 =====
+const applyBind = (tutor) => {
+  selectedTutor.value = tutor
+  applyForm.applyNote = ''
+  selectedAttachFile.value = null
+  applyDialogVisible.value = true
+}
+
+const handleApplyDialogClose = () => {
+  applyDialogVisible.value = false
+  selectedTutor.value = null
+  selectedAttachFile.value = null
+  applyForm.applyNote = ''
+}
+
+const triggerAttachFileInput = () => attachFileInput.value.click()
+
+const handleAttachFileChange = (e) => {
+  if (e.target.files.length > 0) {
+    selectedAttachFile.value = e.target.files[0]
+  }
+}
+
+const submitApply = async () => {
+  applySubmitting.value = true
+  try {
+    const formData = new FormData()
+    formData.append('tutorId', selectedTutor.value.userId)
+    if (applyForm.applyNote) {
+      formData.append('applyNote', applyForm.applyNote)
+    }
+    if (selectedAttachFile.value) {
+      formData.append('attachFile', selectedAttachFile.value)
+    }
+    
+    await api.post('/relation/apply', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+    
+    ElMessage.success('申请已发送，等待导师审核')
+    pendingRelation.value = { tutorName: selectedTutor.value.realName }
+    applyDialogVisible.value = false
+    handleApplyDialogClose()
+  } catch (e) {
+    ElMessage.error(e?.response?.data || '申请失败，可能已存在绑定关系')
+  } finally {
+    applySubmitting.value = false
   }
 }
 
@@ -335,6 +569,10 @@ const loadProfile = async () => {
   try {
     const res = await studentAPI.getProfile(userId)
     Object.assign(form, res)
+    // el-date-picker type="year" 需要字符串，后端可能返回数字
+    if (form.enrollmentYear != null) {
+      form.enrollmentYear = String(form.enrollmentYear)
+    }
   } catch {
     ElMessage.error('加载个人信息失败')
   }
@@ -380,5 +618,25 @@ onMounted(async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+.avatar-section {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.avatar-preview {
+  flex-shrink: 0;
+  background: #409EFF;
+  font-size: 32px;
+  color: #fff;
+}
+.avatar-upload {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.avatar-tip {
+  font-size: 12px;
+  color: #909399;
 }
 </style>

@@ -39,6 +39,18 @@ public class EvalGrowthScore {
     /** 综合成长分 = 学业×0.4 + 获奖×0.2 + 科研×0.2 + 实践×0.2 */
     private BigDecimal totalScore;
 
+    /** AI 成长分析报告（持久化存储） */
+    private String aiAnalysis;
+
+    /** AI 生成的简历（持久化存储） */
+    private String aiResume;
+
+    /** AI 个性化学习建议（持久化存储） */
+    private String aiLearningAdvice;
+
+    /** AI 分析最后更新时间 */
+    private LocalDateTime aiUpdateTime;
+
     /** 最后更新时间 */
     private LocalDateTime updateTime;
 }

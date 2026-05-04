@@ -56,10 +56,10 @@ public class InfoStudentServiceImpl extends ServiceImpl<InfoStudentMapper, InfoS
         // Update user info
         SysUser sysUser = sysUserMapper.selectById(userId);
         if (sysUser != null) {
-            sysUser.setRealName(dto.getRealName());
-            sysUser.setPhone(dto.getPhone());
-            sysUser.setEmail(dto.getEmail());
-            // username and avatar handled elsewhere or not editable here
+            // Real name is not editable - do NOT update realName
+            if (dto.getPhone() != null) sysUser.setPhone(dto.getPhone());
+            if (dto.getEmail() != null) sysUser.setEmail(dto.getEmail());
+            if (dto.getAvatar() != null) sysUser.setAvatar(dto.getAvatar());
             sysUserMapper.updateById(sysUser);
         }
 
@@ -68,20 +68,23 @@ public class InfoStudentServiceImpl extends ServiceImpl<InfoStudentMapper, InfoS
         if (infoStudent == null) {
             infoStudent = new InfoStudent();
             infoStudent.setUserId(userId);
+            // If we are creating a new record, copy real name from sys_user
+            infoStudent.setRealName(sysUser != null ? sysUser.getRealName() : null);
         }
-        
+
         // Use manual setting or BeanUtils with exclusions, here simple copy works if DTO aligns
-        infoStudent.setStudentNo(dto.getStudentNo());
-        infoStudent.setGender(dto.getGender());
-        infoStudent.setCollege(dto.getCollege());
-        infoStudent.setMajor(dto.getMajor());
-        infoStudent.setClassName(dto.getClassName());
-        infoStudent.setEnrollmentYear(dto.getEnrollmentYear());
-        infoStudent.setPoliticalStatus(dto.getPoliticalStatus());
-        infoStudent.setNation(dto.getNation());
-        infoStudent.setNativePlace(dto.getNativePlace());
-        infoStudent.setBirthDate(dto.getBirthDate());
-        
+        if (dto.getStudentNo() != null) infoStudent.setStudentNo(dto.getStudentNo());
+        if (dto.getGender() != null) infoStudent.setGender(dto.getGender());
+        if (dto.getCollege() != null) infoStudent.setCollege(dto.getCollege());
+        if (dto.getMajor() != null) infoStudent.setMajor(dto.getMajor());
+        if (dto.getClassName() != null) infoStudent.setClassName(dto.getClassName());
+        if (dto.getEnrollmentYear() != null) infoStudent.setEnrollmentYear(dto.getEnrollmentYear());
+        if (dto.getPoliticalStatus() != null) infoStudent.setPoliticalStatus(dto.getPoliticalStatus());
+        if (dto.getNation() != null) infoStudent.setNation(dto.getNation());
+        if (dto.getNativePlace() != null) infoStudent.setNativePlace(dto.getNativePlace());
+        if (dto.getBirthDate() != null) infoStudent.setBirthDate(dto.getBirthDate());
+        if (dto.getAvatar() != null) infoStudent.setAvatar(dto.getAvatar());
+
         // If resume file is uploaded, it's typically handled separately, but can be updated here
         if (dto.getResumeFile() != null) {
              infoStudent.setResumeFile(dto.getResumeFile());

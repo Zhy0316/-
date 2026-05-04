@@ -3,8 +3,8 @@
 <mapper namespace="com.example.archivemanagement.mapper.StudentTutorRelationMapper">
 
     <insert id="insert" parameterType="com.example.archivemanagement.entity.StudentTutorRelation">
-        INSERT INTO student_tutor_relation (student_id, tutor_id, status, apply_time)
-        VALUES (#{studentId}, #{tutorId}, #{status}, #{applyTime})
+        INSERT INTO student_tutor_relation (student_id, tutor_id, status, apply_time, apply_note, attach_file)
+        VALUES (#{studentId}, #{tutorId}, #{status}, #{applyTime}, #{applyNote}, #{attachFile})
     </insert>
 
     <update id="update" parameterType="com.example.archivemanagement.entity.StudentTutorRelation">
@@ -40,6 +40,38 @@
 
     <select id="selectByStudentIdAndStatus" resultType="com.example.archivemanagement.entity.StudentTutorRelation">
         SELECT * FROM student_tutor_relation WHERE student_id = #{studentId} AND status = #{status}
+    </select>
+
+    <!-- 查询待审核申请，含学生基本信息 -->
+    <select id="selectPendingWithStudentInfo" resultType="map">
+        SELECT
+            r.id            AS id,
+            r.student_id    AS studentId,
+            r.tutor_id      AS tutorId,
+            r.status        AS status,
+            r.apply_time    AS applyTime,
+            r.apply_note    AS applyNote,
+            r.attach_file   AS attachFile,
+            u.real_name     AS studentName,
+            u.avatar        AS avatar,
+            s.student_no    AS studentNo,
+            s.college       AS college,
+            s.major         AS major,
+            s.class_name    AS className,
+            s.enrollment_year AS enrollmentYear,
+            s.resume_file   AS resumeFile
+        FROM student_tutor_relation r
+        LEFT JOIN sys_user u ON u.user_id = r.student_id
+        LEFT JOIN info_student s ON s.user_id = r.student_id
+        WHERE r.tutor_id = #{tutorId} AND r.status = 0
+        ORDER BY r.apply_time DESC
+    </select>
+
+    <!-- 查询导师的学生ID列表 -->
+    <select id="selectStudentIdsByTutorId" resultType="java.lang.Long">
+        SELECT student_id FROM student_tutor_relation
+        WHERE tutor_id = #{tutorId} AND status = 1
+        ORDER BY apply_time DESC
     </select>
 
 </mapper>

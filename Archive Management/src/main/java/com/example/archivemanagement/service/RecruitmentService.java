@@ -91,4 +91,18 @@ public class RecruitmentService extends ServiceImpl<BusRecruitmentMapper, BusRec
         app.setStatus(status);
         return applicationMapper.updateById(app) > 0;
     }
+
+    /** 企业更新投递流程状态（细化版） */
+    public boolean updateFinalStatus(Long applicationId, Integer finalStatus,
+                                     java.time.LocalDateTime interviewTime, String interviewNote) {
+        BusJobApplication app = applicationMapper.selectById(applicationId);
+        if (app == null) return false;
+        app.setFinalStatus(finalStatus);
+        if (interviewTime != null) app.setInterviewTime(interviewTime);
+        if (interviewNote != null) app.setInterviewNote(interviewNote);
+        // 同步旧 status 字段（兼容）
+        if (finalStatus == 3) app.setStatus(1);      // 录用 → 有意向
+        else if (finalStatus == 4) app.setStatus(2); // 淘汰 → 不匹配
+        return applicationMapper.updateById(app) > 0;
+    }
 }

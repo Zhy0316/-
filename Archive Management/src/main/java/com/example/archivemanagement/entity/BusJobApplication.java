@@ -7,28 +7,24 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
-/**
- * 求职申请实体（对应 bus_job_application 表）
- */
 @Data
 @TableName("bus_job_application")
 public class BusJobApplication {
 
     @TableId(type = IdType.AUTO)
     private Long id;
-
-    /** 招聘职位ID */
     private Long recruitmentId;
-
-    /** 申请学生ID */
     private Long studentId;
-
-    /** 状态：0=已投递，1=有意向，2=不匹配 */
+    /** 旧状态字段（兼容）：0=已投递，1=有意向，2=不匹配 */
     private Integer status;
-
-    /** 留言信息 */
     private String message;
-
-    /** 投递时间 */
     private LocalDateTime applyTime;
+    /** 面试时间 */
+    private LocalDateTime interviewTime;
+    /** 面试备注/通知内容 */
+    private String interviewNote;
+    /**
+     * 最终状态：0=待筛选，1=简历通过，2=面试邀请，3=录用，4=淘汰
+     */
+    private Integer finalStatus;
 }

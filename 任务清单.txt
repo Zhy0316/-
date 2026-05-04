@@ -292,3 +292,119 @@
   3. 前后端实际联调（任务21.3）及接口测试（任务20）尚未执行
 
 ========================================================
+
+========================================================
+六、新功能开发任务（2026 新增）
+========================================================
+
+【A. AI 简历智能生成 — 风格选择增强】
+  ✅ A.1 后端：AiAnalysisController 新增 resumeStyle 参数（classic/modern/academic/creative）
+      - 不同风格对应不同 Prompt 模板（经典/现代/学术/创意）
+  ✅ A.2 前端：AiAnalysis.vue 改造简历生成区域
+      - 添加风格选择卡片（4种风格，含预览图标和描述）
+      - 不同风格渲染不同 CSS 样式
+
+【B. AI 综合评分 + 个性化学习建议】
+  ✅ B.1 后端：AiAnalysisController 新增 /api/ai/learning-advice/{studentId} 接口
+      - 基于成长评分五维数据 + 成绩 + 获奖，生成薄弱项分析和学习建议
+      - 建议包含：推荐课程方向、技能提升路径、短期/长期目标
+  ✅ B.2 前端：GrowthScore.vue 页面底部集成"AI 学习建议"区块
+      - 展示 AI 生成的个性化建议（Markdown 渲染）
+      - 一键触发按钮，结果持久化
+
+【C. 学习天地 — 资源共享】
+  ✅ C.1 数据库：新建 learn_resource 表（id, title, category, description, file_url, link_url, uploader_id, uploader_role, view_count, like_count, create_time）
+  ✅ C.2 后端：新建 LearnResource 实体、Mapper、Service、Controller
+      - GET  /api/learn/list        分页查询（支持分类筛选、关键词搜索）
+      - POST /api/learn/publish     发布资源（学生/导师均可，含文件上传）
+      - DELETE /api/learn/{id}      删除（仅本人或管理员）
+      - PUT  /api/learn/like/{id}   点赞
+  ✅ C.3 前端：新建 bysj/src/views/student/LearnCenter.vue
+      - 资源列表（卡片式，分类Tab：全部/课程资料/竞赛资源/就业指导/其他）
+      - 发布资源弹窗（标题、分类、描述、上传文件或填写链接）
+      - 点赞、查看数展示
+  ✅ C.4 路由：学生端添加 /student/learn 路由，MainLayout 菜单添加"学习天地"入口
+      - 导师端也可访问（/tutor/learn）
+
+【D. AI 职位推荐 + 未来规划辅助】
+  ✅ D.1 后端：AiAnalysisController 新增 /api/ai/job-recommend/{studentId} 接口
+      - 结合学生档案（专业、技能、GPA、获奖、实践）+ 当前招聘列表
+      - 调用千问 AI 返回：匹配职位推荐列表（含匹配理由）+ 未来规划建议
+  ✅ D.2 前端：Recruitment.vue 页面新增"AI 职位推荐"Tab
+      - 展示 AI 推荐的职位（高亮显示匹配原因）
+      - 展示未来规划建议（考研/就业/出国方向分析）
+
+【E. 导师沟通（消息系统）】
+  ✅ E.1 数据库：新建 msg_message 表（id, from_user_id, to_user_id, content, is_read, create_time, conversation_key）
+  ✅ E.2 后端：新建 MessageController
+      - POST /api/message/send           发送消息
+      - GET  /api/message/conversations  获取会话列表（含最新一条消息、未读数）
+      - GET  /api/message/history        获取与某人的聊天记录（分页）
+      - PUT  /api/message/read/{userId}  标记已读
+  ✅ E.3 前端：新建 bysj/src/views/student/Message.vue（学生端消息页）
+      - 左侧会话列表（导师头像、最新消息、未读红点）
+      - 右侧聊天窗口（气泡式消息、发送框）
+  ✅ E.4 前端：导师端 bysj/src/views/tutor/Message.vue
+      - 同上，可与绑定学生沟通
+  ✅ E.5 路由 + 菜单：学生端 /student/message、导师端 /tutor/message
+
+【F. HR 沟通（消息系统复用）】
+  ✅ F.1 复用 E 的消息系统，HR 可与投递简历的学生沟通
+  ✅ F.2 前端：新建 bysj/src/views/hr/Message.vue
+      - 会话列表来源：有投递记录的学生
+      - 路由 /hr/message，菜单添加入口
+  ✅ F.3 学生端消息页支持与 HR 的会话（会话列表自动包含 HR 联系人）
+
+========================================================
+执行顺序（推荐）：
+  1. E（消息系统）— 基础设施，F 依赖它
+  2. C（学习天地）— 独立模块，不依赖其他
+  3. A（简历风格）— 改造现有 AI 页面
+  4. B（学习建议）— 改造现有评分页面
+  5. D（职位推荐）— 改造现有招聘页面
+  6. F（HR沟通）— 复用消息系统
+========================================================
+
+========================================================
+七、新需求任务（2026 第二批）
+========================================================
+
+【G. 导师绑定前查看学生基本情况 + 学生自荐】
+  ✅ G.1 数据库：student_tutor_relation 表新增 apply_note（自荐信）、attach_file（附件）字段
+  ✅ G.2 后端：/api/relation/apply 接口支持 applyNote + attachFile 参数
+         新增 GET /api/relation/student-preview/{studentId} 供导师查看学生基本信息
+         新增 GET /api/relation/tutor/{tutorId}/pending-detail 含学生信息的待审核列表
+  ✅ G.3 前端：TutorBind.vue 申请弹窗加自荐信输入 + 附件上传 + 查看导师详情
+  ✅ G.4 前端：导师端 Pending.vue 审核列表展示学生基本信息 + 自荐信 + 附件 + 查看档案弹窗
+
+【H. 企业权限管控 + 认证流程完善】
+  ✅ H.1 后端：AuthInterceptor 对敏感接口校验企业认证状态（auditStatus=1 才可访问）
+         新增 GET /api/enterprise/audit-status 快速查询认证状态
+  ✅ H.2 前端：StudentBrowse.vue 未认证时显示引导提示，禁止访问；已认证正常显示
+  ✅ H.3 前端：HrProfile.vue 完善认证状态展示（步骤条+时间线）+ 认证材料上传流程
+
+【I. AI 智能学生推荐（企业端）】
+  ✅ I.1 后端：新增 POST /api/ai/student-recommend/{recruitmentId} 接口
+         结合职位要求 + 学生档案（专业/GPA/获奖），推荐最匹配的5名学生
+         InfoStudentMapper 新增 selectAllStudentSummary 批量查询
+         RecordAwardMapper 新增 selectAllPassed 统计获奖
+  ✅ I.2 前端：StudentBrowse.vue 已预留"AI 智能推荐"Tab（H 任务中已实现）
+
+【J. 招聘流程细化 + 界面升级】
+  ✅ J.1 数据库：bus_recruitment 新增 job_type、headcount、deadline、education、experience、description 字段
+         bus_job_application 新增 interview_time、interview_note、final_status 字段
+  ✅ J.2 后端：招聘接口支持新字段；投递状态细化（0待筛选/1简历通过/2面试邀请/3录用/4淘汰）
+         新增 PUT /api/recruitment/{id} 编辑接口
+         新增 PUT /api/job-application/final-status 流程状态更新接口
+  ✅ J.3 前端：RecruitmentManage.vue 发布表单升级（职位类型/人数/截止日期/学历/经验/详细描述）
+         投递管理支持按状态筛选 + 流程推进下拉菜单 + 面试邀请弹窗（自动发消息通知）
+  ✅ J.4 前端：学生端 Recruitment.vue 招聘卡片升级（更丰富信息 + 点击查看详情弹窗）
+  ✅ J.5 前端：投递状态流程可视化（el-steps 进度条 + 面试时间展示 + 淘汰提示）
+
+【K. AI 简历生成完善（GrowthScore 页面）】
+  ✅ K.1 GrowthScore.vue 简历生成 Tab 加入风格选择（4种风格卡片，传 resumeStyle 参数）
+         打印时应用对应风格字体样式，简历渲染加差异化 CSS class
+
+========================================================
+执行顺序：G → H → I → J → K
+========================================================

@@ -7,4 +7,8 @@ import java.util.List;
 
 public interface RecordAwardService extends IService<RecordAward> {
     List<RecordAward> getByStudentId(Long studentId);
+    
+    List<RecordAward> getPendingByTutorId(Long tutorId);
+    
+    int countPendingByTutorId(Long tutorId);
 }

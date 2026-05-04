@@ -22,6 +22,9 @@
         <el-menu-item index="/hr/applications">
           <el-icon><Document /></el-icon><span>投递管理</span>
         </el-menu-item>
+        <el-menu-item index="/hr/message">
+          <el-icon><ChatDotRound /></el-icon><span>消息</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
 
@@ -32,10 +35,7 @@
           <el-tag v-if="auditStatus === 0" type="warning" size="small">待审核</el-tag>
           <el-tag v-else-if="auditStatus === 1" type="success" size="small">已认证</el-tag>
           <el-tag v-else-if="auditStatus === 2" type="danger" size="small">已驳回</el-tag>
-          <span class="username">{{ userStore.userInfo?.realName }}</span>
-          <el-button text @click="handleLogout">
-            <el-icon><SwitchButton /></el-icon> 退出
-          </el-button>
+          <UserDropdown />
         </div>
       </el-header>
 
@@ -72,8 +72,9 @@ import { useUserStore } from '../../stores/user.js'
 import { getEnterpriseInfo } from '../../services/enterprise.js'
 import { getMyRecruitments } from '../../services/recruitment.js'
 import {
-  House, OfficeBuilding, Briefcase, User, Document, SwitchButton
+  House, OfficeBuilding, Briefcase, User, Document, SwitchButton, ChatDotRound
 } from '@element-plus/icons-vue'
+import UserDropdown from '../../components/Layout/UserDropdown.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -90,7 +91,7 @@ const pageTitle = computed(() => {
   const map = {
     '/hr/home': '首页', '/hr/profile': '企业信息',
     '/hr/recruitment': '招聘管理', '/hr/students': '浏览学生',
-    '/hr/applications': '投递管理'
+    '/hr/applications': '投递管理', '/hr/message': '消息'
   }
   return map[route.path] || '企业HR端'
 })

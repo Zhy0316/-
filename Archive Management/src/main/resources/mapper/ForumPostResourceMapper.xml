@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.archivemanagement.mapper.ForumPostResourceMapper">
+    <select id="selectByPostId" resultType="com.example.archivemanagement.entity.ForumPostResource">
+        SELECT * FROM forum_post_resource WHERE post_id = #{postId} ORDER BY sort_order ASC
+    </select>
+
+    <delete id="deleteByPostId">
+        DELETE FROM forum_post_resource WHERE post_id = #{postId}
+    </delete>
+</mapper>

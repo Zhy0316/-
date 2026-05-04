@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.archivemanagement.mapper.DictDiaryTagMapper">
+    
+    <!-- 根据标签类型查询标签列表 -->
+    <select id="selectByType" resultType="com.example.archivemanagement.entity.DictDiaryTag">
+        SELECT * FROM dict_diary_tag
+        WHERE tag_type = #{tagType}
+        ORDER BY sort_order ASC
+    </select>
+    
+    <!-- 查询所有系统标签 -->
+    <select id="selectSystemTags" resultType="com.example.archivemanagement.entity.DictDiaryTag">
+        SELECT * FROM dict_diary_tag
+        WHERE is_system = 1
+        ORDER BY tag_type ASC, sort_order ASC
+    </select>
+    
+</mapper>

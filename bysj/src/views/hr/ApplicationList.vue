@@ -22,10 +22,11 @@
           </el-select>
         </template>
       </el-table-column>
-      <el-table-column label="简历" width="80">
+      <el-table-column label="操作" width="160">
         <template #default="{ row }">
           <el-button v-if="row.resumeFile" size="small" type="primary" link
-            @click="window.open('http://localhost:8083'+row.resumeFile)">查看</el-button>
+            @click="window.open('http://localhost:8083'+row.resumeFile)">查看简历</el-button>
+          <el-button size="small" type="success" link @click="contactStudent(row)">联系学生</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -35,14 +36,17 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
   getMyRecruitments, getApplicationsByRecruitment, updateApplicationStatus
 } from '../../services/recruitment.js'
+import messageApi from '../../services/message.js'
 
 const jobs = ref([])
 const selectedJobId = ref(null)
 const applications = ref([])
+const router = useRouter()
 
 const loadJobs = async () => {
   jobs.value = await getMyRecruitments().catch(() => []) || []
@@ -56,6 +60,21 @@ const loadApps = async () => {
 const updateStatus = async (row) => {
   await updateApplicationStatus(row.applicationId, row.status)
   ElMessage.success('状态已更新')
+}
+
+// 联系学生：发一条初始消息，跳转到消息页
+const contactStudent = async (row) => {
+  if (!row.studentUserId) {
+    ElMessage.warning('暂无学生联系信息')
+    return
+  }
+  try {
+    await messageApi.send(row.studentUserId, `您好 ${row.realName}，我们对您的投递很感兴趣，希望进一步沟通。`)
+    ElMessage.success('已发送消息，正在跳转...')
+    router.push('/hr/message')
+  } catch {
+    ElMessage.error('发送失败，请稍后重试')
+  }
 }
 
 onMounted(loadJobs)

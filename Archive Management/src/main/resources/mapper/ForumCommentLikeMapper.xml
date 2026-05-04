@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.archivemanagement.mapper.ForumCommentLikeMapper">
+    <delete id="deleteLike">
+        DELETE FROM forum_comment_like WHERE comment_id = #{commentId} AND user_id = #{userId}
+    </delete>
+</mapper>

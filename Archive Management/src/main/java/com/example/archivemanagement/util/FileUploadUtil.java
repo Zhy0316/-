@@ -14,6 +14,24 @@ public class FileUploadUtil {
     private static final String BASE_UPLOAD_DIR = System.getProperty("user.dir") + "/uploads/";
 
     /**
+     * 上传文件到用户专属目录（无类型限制版本，用于作品集等场景）
+     */
+    public static String uploadFileAny(MultipartFile file, Long userId, String subDir) throws IOException {
+        if (file == null || file.isEmpty()) return null;
+        String originalFilename = file.getOriginalFilename();
+        if (originalFilename == null || !originalFilename.contains(".")) {
+            throw new IllegalArgumentException("文件名不合法");
+        }
+        String ext = originalFilename.substring(originalFilename.lastIndexOf('.')).toLowerCase();
+        String userDirPath = BASE_UPLOAD_DIR + userId + "/" + subDir;
+        File userDir = new File(userDirPath);
+        if (!userDir.exists()) userDir.mkdirs();
+        String filename = UUID.randomUUID().toString() + ext;
+        file.transferTo(new File(userDir, filename));
+        return "/uploads/" + userId + "/" + subDir + "/" + filename;
+    }
+
+    /**
      * 上传文件到用户专属目录
      * @param file 上传的文件
      * @param userId 用户ID
@@ -34,10 +52,22 @@ public class FileUploadUtil {
         }
         
         String fileExtension = originalFilename.substring(originalFilename.lastIndexOf('.')).toLowerCase();
-        List<String> allowedExtensions = Arrays.asList(".png", ".jpg", ".jpeg", ".pdf", ".doc", ".docx");
-        
-        if (!allowedExtensions.contains(fileExtension)) {
-            throw new IllegalArgumentException("文件类型不符合要求，仅支持png、jpg、pdf、word类型");
+
+        // portfolio/diary/research/cover/forum 子目录支持所有文件类型（包括视频）
+        if (!"portfolio".equals(subDir) && !"diary".equals(subDir)
+                && !"research".equals(subDir) && !"cover".equals(subDir)
+                && !"forum".equals(subDir) && !"apply".equals(subDir)) {
+            List<String> allowedExtensions = Arrays.asList(
+                ".png", ".jpg", ".jpeg", ".gif",
+                ".pdf", ".doc", ".docx", ".xls", ".xlsx",
+                ".zip", ".rar", ".7z",
+                ".txt", ".md",
+                ".mp4", ".avi", ".mov", ".wmv", ".flv", ".mkv", ".webm",
+                ".mp3", ".wav", ".flac", ".aac", ".ogg"
+            );
+            if (!allowedExtensions.contains(fileExtension)) {
+                throw new IllegalArgumentException("文件类型不符合要求，支持图片、文档、压缩包、视频、音频等常见格式");
+            }
         }
 
         // 创建用户专属目录结构：uploads/{userId}/{subDir}

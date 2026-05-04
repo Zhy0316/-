@@ -24,6 +24,12 @@
         </el-col>
         <el-col :span="6">
           <el-card shadow="hover" class="stat-card">
+            <div class="stat-title">待审核申请</div>
+            <div class="stat-value pending-count">{{ pendingCount }}</div>
+          </el-card>
+        </el-col>
+        <el-col :span="6">
+          <el-card shadow="hover" class="stat-card">
             <div class="stat-title">今日访问</div>
             <div class="stat-value">0</div>
           </el-card>

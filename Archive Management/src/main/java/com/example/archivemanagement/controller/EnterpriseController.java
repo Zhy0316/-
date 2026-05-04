@@ -39,6 +39,14 @@ public class EnterpriseController {
         return Result.ok(enterprise);
     }
 
+    /** 获取认证状态（不需要认证即可访问，用于前端判断） */
+    @GetMapping("/api/enterprise/audit-status")
+    public Result<Integer> getAuditStatus(HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        InfoEnterprise enterprise = enterpriseService.getByUserId(userId);
+        return Result.ok(enterprise != null ? enterprise.getAuditStatus() : -1);
+    }
+
     @PutMapping("/api/enterprise/info")
     public Result<Void> updateInfo(@RequestBody InfoEnterprise enterprise,
                                    HttpServletRequest request) {
@@ -53,6 +61,14 @@ public class EnterpriseController {
         Long userId = (Long) request.getAttribute("userId");
         String filePath = FileUploadUtil.uploadFile(file, userId, "license");
         enterpriseService.updateLicenseFile(userId, filePath);
+        
+        // 上传执照后自动将状态设为待审核
+        InfoEnterprise enterprise = enterpriseService.getByUserId(userId);
+        if (enterprise != null && enterprise.getAuditStatus() != 1) {
+            enterprise.setAuditStatus(0); // 设为待审核
+            enterpriseService.updateEnterprise(userId, enterprise);
+        }
+        
         return Result.ok(Map.of("filePath", filePath));
     }
 

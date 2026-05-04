@@ -106,11 +106,11 @@ public class DataInitializer implements CommandLineRunner {
         if (tutorRole == null) return;
 
         createTutor("tutor1", "张教授", "13800138001", "tutor1@example.com",
-                "T001", "教授", "计算机科学与技术", tutorRole.getRoleId());
+                "T001", "教授", "计算机科学与技术", "计算机学院", tutorRole.getRoleId());
         createTutor("tutor2", "李副教授", "13800138002", "tutor2@example.com",
-                "T002", "副教授", "软件工程", tutorRole.getRoleId());
+                "T002", "副教授", "软件工程", "计算机学院", tutorRole.getRoleId());
         createTutor("tutor3", "王讲师", "13800138003", "tutor3@example.com",
-                "T003", "讲师", "数据科学与大数据技术", tutorRole.getRoleId());
+                "T003", "讲师", "数据科学与大数据技术", "信息学院", tutorRole.getRoleId());
         System.out.println("测试导师数据初始化完成");
     }
 
@@ -204,7 +204,7 @@ public class DataInitializer implements CommandLineRunner {
     }
 
     private void createTutor(String username, String realName, String phone, String email,
-                              String tutorNo, String title, String field, Long roleId) {
+                              String tutorNo, String title, String field, String college, Long roleId) {
         SysUser user = new SysUser();
         user.setUsername(username);
         user.setPassword(encryptPassword("123456"));
@@ -219,6 +219,7 @@ public class DataInitializer implements CommandLineRunner {
         info.setTutorNo(tutorNo);
         info.setTitle(title);
         info.setResearchField(field);
+        info.setCollege(college);
         tutorMapper.insert(info);
 
         SysUserRole ur = new SysUserRole();

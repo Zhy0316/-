@@ -1,8 +1,11 @@
 package com.example.archivemanagement.controller;
 
+import com.example.archivemanagement.common.BusinessException;
+import com.example.archivemanagement.common.Result;
 import com.example.archivemanagement.entity.RecordPortfolio;
 import com.example.archivemanagement.service.RecordPortfolioService;
 import com.example.archivemanagement.util.FileUploadUtil;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
@@ -11,9 +14,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.InputStream;
+import java.io.*;
+import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -29,9 +31,82 @@ public class RecordPortfolioController {
     private final RecordPortfolioService service;
 
     @GetMapping("/{studentId}")
-    public ResponseEntity<List<RecordPortfolio>> getPortfolioList(@PathVariable Long studentId) {
-        List<RecordPortfolio> portfolioList = service.getByStudentId(studentId);
-        return ResponseEntity.ok(portfolioList);
+    public Result<List<RecordPortfolio>> getPortfolioList(@PathVariable Long studentId) {
+        return Result.ok(service.getByStudentId(studentId));
+    }
+
+    @PostMapping("/meta")
+    public ResponseEntity<RecordPortfolio> savePortfolioMeta(
+            @RequestParam("studentId") Long studentId,
+            @RequestParam("title") String title,
+            @RequestParam("workType") String workType,
+            @RequestParam("description") String description,
+            @RequestParam(value = "cover", required = false) MultipartFile cover) {
+        try {
+            RecordPortfolio portfolio = new RecordPortfolio();
+            portfolio.setStudentId(studentId);
+            portfolio.setTitle(title);
+            portfolio.setWorkType(workType);
+            portfolio.setDescription(description);
+            portfolio.setUploadTime(new Date());
+
+            if (cover != null && !cover.isEmpty()) {
+                String coverBase64 = FileUploadUtil.fileToBase64(cover);
+                portfolio.setCoverUrl(coverBase64);
+            }
+
+            service.save(portfolio);
+            return ResponseEntity.ok(portfolio);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).build();
+        }
+    }
+
+    @PostMapping("/{id}/file")
+    public ResponseEntity<RecordPortfolio> uploadPortfolioFile(
+            @PathVariable Long id,
+            @RequestParam("file") MultipartFile file) {
+        try {
+            RecordPortfolio existing = service.getById(id);
+            if (existing == null) return ResponseEntity.notFound().build();
+
+            String fileUrl = FileUploadUtil.uploadFile(file, existing.getStudentId(), "portfolio");
+
+            RecordPortfolio update = new RecordPortfolio();
+            update.setId(id);
+            update.setFileUrl(fileUrl);
+
+            String originalFilename = file.getOriginalFilename();
+            if (originalFilename != null && (originalFilename.endsWith(".zip") || originalFilename.endsWith(".rar"))) {
+                String savedFilePath = FileUploadUtil.getBaseUploadDir() + existing.getStudentId() + "/portfolio/" +
+                        fileUrl.substring(fileUrl.lastIndexOf("/") + 1);
+                File savedFile = new File(savedFilePath);
+                if (savedFile.exists()) {
+                    try (InputStream inputStream = new FileInputStream(savedFile);
+                         ZipInputStream zipInputStream = new ZipInputStream(inputStream)) {
+                        Map<String, Object> root = new HashMap<>();
+                        root.put("name", originalFilename.substring(0, originalFilename.lastIndexOf('.')));
+                        root.put("type", "folder");
+                        root.put("expanded", true);
+                        List<Map<String, Object>> children = new ArrayList<>();
+                        root.put("children", children);
+                        ZipEntry entry;
+                        while ((entry = zipInputStream.getNextEntry()) != null) {
+                            if (!entry.isDirectory()) FileUploadUtil.addFileToTree(children, entry.getName());
+                            zipInputStream.closeEntry();
+                        }
+                        update.setFileStructure(FileUploadUtil.buildTreeJson(root));
+                    }
+                }
+            }
+
+            service.updateById(update);
+            return ResponseEntity.ok(service.getById(id));
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).build();
+        }
     }
 
     @PostMapping
@@ -50,20 +125,16 @@ public class RecordPortfolioController {
             portfolio.setDescription(description);
             portfolio.setUploadTime(new Date());
 
-            // 上传作品文件
             if (file != null && !file.isEmpty()) {
                 String fileUrl = FileUploadUtil.uploadFile(file, studentId, "portfolio");
                 portfolio.setFileUrl(fileUrl);
-                
-                // 如果是压缩包文件，读取保存后的文件来解析结构
+
                 String originalFilename = file.getOriginalFilename();
                 if (originalFilename != null && (originalFilename.endsWith(".zip") || originalFilename.endsWith(".rar"))) {
-                    // 获取保存后的文件路径
-                    String savedFilePath = FileUploadUtil.getBaseUploadDir() + studentId + "/portfolio/" + 
-                        fileUrl.substring(fileUrl.lastIndexOf("/") + 1);
+                    String savedFilePath = FileUploadUtil.getBaseUploadDir() + studentId + "/portfolio/" +
+                            fileUrl.substring(fileUrl.lastIndexOf("/") + 1);
                     File savedFile = new File(savedFilePath);
                     if (savedFile.exists()) {
-                        // 读取保存后的文件来解析结构
                         try (InputStream inputStream = new FileInputStream(savedFile);
                              ZipInputStream zipInputStream = new ZipInputStream(inputStream)) {
                             Map<String, Object> root = new HashMap<>();
@@ -72,93 +143,27 @@ public class RecordPortfolioController {
                             root.put("expanded", true);
                             List<Map<String, Object>> children = new ArrayList<>();
                             root.put("children", children);
-
                             ZipEntry entry;
                             while ((entry = zipInputStream.getNextEntry()) != null) {
-                                if (!entry.isDirectory()) {
-                                    String filePath = entry.getName();
-                                    FileUploadUtil.addFileToTree(children, filePath);
-                                }
+                                if (!entry.isDirectory()) FileUploadUtil.addFileToTree(children, entry.getName());
                                 zipInputStream.closeEntry();
                             }
-
-                            String fileStructure = FileUploadUtil.buildTreeJson(root);
-                            portfolio.setFileStructure(fileStructure);
+                            portfolio.setFileStructure(FileUploadUtil.buildTreeJson(root));
                         }
                     }
                 }
             }
 
-            // 上传封面图片（转换为base64存储）
             if (cover != null && !cover.isEmpty()) {
-                String coverBase64 = FileUploadUtil.fileToBase64(cover);
-                portfolio.setCoverUrl(coverBase64);
+                portfolio.setCoverUrl(FileUploadUtil.fileToBase64(cover));
             }
 
-            boolean result = service.save(portfolio);
-            if (result) {
-                return ResponseEntity.ok(portfolio);
-            } else {
-                return ResponseEntity.badRequest().build();
-            }
+            service.save(portfolio);
+            return ResponseEntity.ok(portfolio);
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(500).build();
         }
-    }
-
-    @PutMapping
-    public ResponseEntity<RecordPortfolio> updatePortfolio(
-            @RequestParam("id") Long id,
-            @RequestParam("title") String title,
-            @RequestParam("workType") String workType,
-            @RequestParam("description") String description,
-            @RequestParam(value = "file", required = false) MultipartFile file,
-            @RequestParam(value = "cover", required = false) MultipartFile cover) {
-        try {
-            RecordPortfolio portfolio = new RecordPortfolio();
-            portfolio.setId(id);
-            portfolio.setTitle(title);
-            portfolio.setWorkType(workType);
-            portfolio.setDescription(description);
-
-            // 获取学生ID
-            RecordPortfolio existingPortfolio = service.getById(id);
-            Long studentId = existingPortfolio != null ? existingPortfolio.getStudentId() : 0L;
-
-            // 上传作品文件
-            if (file != null && !file.isEmpty()) {
-                String fileUrl = FileUploadUtil.uploadFile(file, studentId, "portfolio");
-                portfolio.setFileUrl(fileUrl);
-            }
-
-            // 上传封面图片（转换为base64存储）
-            if (cover != null && !cover.isEmpty()) {
-                String coverBase64 = FileUploadUtil.fileToBase64(cover);
-                portfolio.setCoverUrl(coverBase64);
-            }
-
-            boolean result = service.updateById(portfolio);
-            if (result) {
-                return ResponseEntity.ok(portfolio);
-            } else {
-                return ResponseEntity.badRequest().build();
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.status(500).build();
-        }
-    }
-
-    @DeleteMapping("/{id}")
-    public ResponseEntity<?> deletePortfolio(@PathVariable Long id,
-                                             jakarta.servlet.http.HttpServletRequest request) {
-        Long callerId = (Long) request.getAttribute("userId");
-        RecordPortfolio portfolio = service.getById(id);
-        if (portfolio == null) return ResponseEntity.status(404).body("作品不存在");
-        if (!portfolio.getStudentId().equals(callerId)) return ResponseEntity.status(403).body("无权删除他人作品");
-        service.removeById(id);
-        return ResponseEntity.ok().build();
     }
 
     @GetMapping("/download/{id}")
@@ -167,28 +172,59 @@ public class RecordPortfolioController {
         if (portfolio == null || portfolio.getFileUrl() == null) {
             return ResponseEntity.notFound().build();
         }
-        
-        // 获取文件路径
+
         String fileUrl = portfolio.getFileUrl();
-        String fileName = fileUrl.substring(fileUrl.lastIndexOf("/") + 1);
-        String filePath = FileUploadUtil.getBaseUploadDir() + portfolio.getStudentId() + "/portfolio/" + fileName;
-        
-        Path path = Paths.get(filePath);
+        Path path;
+        if (fileUrl.startsWith("/uploads/") || fileUrl.startsWith("\\uploads\\")) {
+            String fileName = fileUrl.substring(fileUrl.lastIndexOf("/") + 1);
+            path = Paths.get(FileUploadUtil.getBaseUploadDir() + portfolio.getStudentId() + "/portfolio/" + fileName);
+        } else {
+            path = Paths.get(fileUrl);
+        }
+
         Resource resource = new UrlResource(path.toUri());
-        
         if (!resource.exists()) {
             return ResponseEntity.notFound().build();
         }
-        
-        // 设置响应头
+
         String contentType = Files.probeContentType(path);
-        if (contentType == null) {
-            contentType = "application/octet-stream";
-        }
-        
+        if (contentType == null) contentType = "application/octet-stream";
+
+        String fileName = path.getFileName().toString();
+        String ext = fileName.contains(".") ? fileName.substring(fileName.lastIndexOf(".")) : "";
+
         return ResponseEntity.ok()
                 .contentType(org.springframework.http.MediaType.parseMediaType(contentType))
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + portfolio.getTitle() + fileName.substring(fileName.lastIndexOf(".")) + "\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + portfolio.getTitle() + ext + "\"")
                 .body(resource);
+    }
+
+    @PostMapping("/path")
+    public ResponseEntity<RecordPortfolio> saveByLocalPath(
+            @RequestParam("studentId") Long studentId,
+            @RequestParam("title") String title,
+            @RequestParam("workType") String workType,
+            @RequestParam("description") String description,
+            @RequestParam("filePath") String filePath,
+            @RequestParam(value = "cover", required = false) MultipartFile cover) {
+        try {
+            RecordPortfolio portfolio = new RecordPortfolio();
+            portfolio.setStudentId(studentId);
+            portfolio.setTitle(title);
+            portfolio.setWorkType(workType);
+            portfolio.setDescription(description);
+            portfolio.setUploadTime(new Date());
+            portfolio.setFileUrl(filePath);
+
+            if (cover != null && !cover.isEmpty()) {
+                portfolio.setCoverUrl(FileUploadUtil.fileToBase64(cover));
+            }
+
+            service.save(portfolio);
+            return ResponseEntity.ok(portfolio);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).build();
+        }
     }
 }

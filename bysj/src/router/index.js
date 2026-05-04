@@ -17,10 +17,21 @@ const routes = [
       { path: 'home',    name: 'StudentHome',       component: () => import('../views/student/StudentDashboard.vue') },
       { path: 'profile', name: 'StudentProfile',    component: () => import('../views/student/Profile.vue') },
       { path: 'academic',name: 'StudentAcademic',   component: () => import('../views/student/Academic.vue') },
+      { path: 'academic-health', name: 'AcademicHealth', component: () => import('../views/student/AcademicHealth.vue') },
       { path: 'record',  name: 'StudentRecord',     component: () => import('../views/student/Record.vue') },
+      { path: 'diary-enhanced', name: 'DiaryEnhanced', component: () => import('../views/student/DiaryEnhanced.vue') },
+      { path: 'award',   name: 'StudentAward',      component: () => import('../views/student/Award.vue') },
       { path: 'portfolio',name: 'StudentPortfolio', component: () => import('../views/student/Portfolio.vue') },
+      { path: 'practice', name: 'StudentPractice',  component: () => import('../views/student/Practice.vue') },
       { path: 'growth',  name: 'StudentGrowth',     component: () => import('../views/student/GrowthScore.vue') },
+      { path: 'growth-report', name: 'GrowthReport', component: () => import('../views/student/GrowthReport.vue') },
+      { path: 'ai',      name: 'StudentAi',         component: () => import('../views/student/AiAnalysis.vue') },
       { path: 'recruitment', name: 'StudentRecruitment', component: () => import('../views/student/Recruitment.vue') },
+      { path: 'message',     name: 'StudentMessage',     component: () => import('../views/student/Message.vue') },
+      { path: 'todo',        name: 'StudentTodo',        component: () => import('../views/TodoMessage.vue') },
+      { path: 'learn',       name: 'StudentLearn',       component: () => import('../views/student/LearnCenter.vue') },
+      { path: 'forum',       name: 'StudentForum',       component: () => import('../views/student/Forum.vue') },
+      { path: 'forum/detail/:id', name: 'ForumDetail',  component: () => import('../views/student/ForumDetail.vue') },
     ]
   },
 
@@ -33,15 +44,21 @@ const routes = [
     children: [
       { path: '',        redirect: '/tutor/home' },
       { path: 'home',    name: 'TutorHome',         component: () => import('../views/tutor/Home.vue') },
+      { path: 'workbench', name: 'TutorWorkbench',  component: () => import('../views/tutor/TutorWorkbench.vue') },
       { path: 'students',name: 'TutorStudents',     component: () => import('../views/tutor/Students.vue') },
       { path: 'student/:id', name: 'StudentDetail', component: () => import('../views/tutor/StudentDetail.vue') },
       { path: 'pending', name: 'TutorPending',      component: () => import('../views/tutor/Pending.vue') },
       { path: 'profile', name: 'TutorProfile',      component: () => import('../views/tutor/Profile.vue') },
       { path: 'comments',name: 'TutorComments',     component: () => import('../views/tutor/CommentList.vue') },
-    ]
-  },
+      { path: 'message', name: 'TutorMessage',      component: () => import('../views/tutor/Message.vue') },
+      { path: 'todo',    name: 'TutorTodo',         component: () => import('../views/TodoMessage.vue') },
+      { path: 'learn',   name: 'TutorLearn',        component: () => import('../views/student/Forum.vue') },
+      { path: 'forum',   name: 'TutorForum',        component: () => import('../views/student/Forum.vue') },
+      { path: 'forum/detail/:id', name: 'TutorForumDetail', component: () => import('../views/student/ForumDetail.vue') },
+      ]
+    },
 
-  // ==================== 企业HR端 ====================
+    // ==================== 企业HR端 ====================
   {
     path: '/hr',
     name: 'HrLayout',
@@ -54,6 +71,7 @@ const routes = [
       { path: 'recruitment',name: 'HrRecruitment',   component: () => import('../views/hr/RecruitmentManage.vue') },
       { path: 'students',   name: 'HrStudents',      component: () => import('../views/hr/StudentBrowse.vue') },
       { path: 'applications',name: 'HrApplications', component: () => import('../views/hr/ApplicationList.vue') },
+      { path: 'message',    name: 'HrMessage',       component: () => import('../views/hr/Message.vue') },
     ]
   },
 

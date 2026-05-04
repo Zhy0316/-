@@ -4,6 +4,7 @@
       <h3>学业成绩管理</h3>
       <div>
         <input type="file" ref="fileInput" @change="handleImport" accept=".csv, .txt, .xlsx, .xls" style="display: none" />
+        <el-button type="info" icon="TrendCharts" @click="goToHealthAnalysis">健康度分析</el-button>
         <el-button type="primary" @click="dialogVisible = true">人工录入成绩</el-button>
         <el-button type="warning" @click="triggerImport">导入成绩单(Excel/TXT/CSV)</el-button>
         <el-button type="success" @click="handleExport">导出成绩单(CSV)</el-button>
@@ -128,12 +129,14 @@
 
 <script setup>
 import { ref, computed, onMounted, nextTick } from 'vue';
+import { useRouter } from 'vue-router';
 import { useUserStore } from '@/stores/user';
 import { getAcademicRecords, addAcademicRecord, deleteAcademicRecord } from '@/services/academic';
 import { api } from '@/services/api';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import * as echarts from 'echarts';
 
+const router = useRouter();
 const userStore = useUserStore();
 const records = ref([]);
 const dialogVisible = ref(false);
@@ -392,6 +395,10 @@ const renderChart = () => {
     }]
   };
   myChart.setOption(option);
+};
+
+const goToHealthAnalysis = () => {
+  router.push('/student/academic-health');
 };
 
 onMounted(() => {

@@ -23,4 +23,12 @@ public interface StudentTutorRelationMapper {
     List<StudentTutorRelation> selectByTutorIdAndStatus(Long tutorId, Integer status);
     
     List<StudentTutorRelation> selectByStudentIdAndStatus(Long studentId, Integer status);
+
+    /** 查询待审核申请，含学生基本信息 */
+    List<java.util.Map<String, Object>> selectPendingWithStudentInfo(Long tutorId);
+    
+    /**
+     * 查询导师的学生ID列表
+     */
+    List<Long> selectStudentIdsByTutorId(Long tutorId);
 }

@@ -52,6 +52,22 @@ public class RecruitmentController {
         return Result.ok("招聘已关闭");
     }
 
+    /** 编辑招聘信息 */
+    @PutMapping("/api/recruitment/{id}")
+    public Result<Void> update(@PathVariable Long id,
+                               @RequestBody BusRecruitment recruitment,
+                               HttpServletRequest request) {
+        Long enterpriseId = (Long) request.getAttribute("userId");
+        BusRecruitment existing = recruitmentService.getById(id);
+        if (existing == null || !existing.getEnterpriseId().equals(enterpriseId)) {
+            throw BusinessException.forbidden("无权限修改");
+        }
+        recruitment.setId(id);
+        recruitment.setEnterpriseId(enterpriseId);
+        recruitmentService.updateById(recruitment);
+        return Result.ok("修改成功");
+    }
+
     @PostMapping("/api/job-application/apply")
     public Result<BusJobApplication> apply(@RequestBody Map<String, Object> body,
                                            HttpServletRequest request) {
@@ -79,6 +95,28 @@ public class RecruitmentController {
         Long applicationId = Long.valueOf(body.get("applicationId").toString());
         Integer status = Integer.valueOf(body.get("status").toString());
         if (!recruitmentService.updateApplicationStatus(applicationId, status)) {
+            throw new BusinessException("更新失败");
+        }
+        return Result.ok("状态更新成功");
+    }
+
+    /**
+     * 更新投递流程状态（细化版）
+     * PUT /api/job-application/final-status
+     * body: { applicationId, finalStatus, interviewTime?, interviewNote? }
+     */
+    @PutMapping("/api/job-application/final-status")
+    public Result<Void> updateFinalStatus(@RequestBody Map<String, Object> body) {
+        Long applicationId = Long.valueOf(body.get("applicationId").toString());
+        Integer finalStatus = Integer.valueOf(body.get("finalStatus").toString());
+        String interviewNote = body.containsKey("interviewNote") ? body.get("interviewNote").toString() : null;
+        String interviewTimeStr = body.containsKey("interviewTime") && body.get("interviewTime") != null
+                ? body.get("interviewTime").toString() : null;
+        java.time.LocalDateTime interviewTime = null;
+        if (interviewTimeStr != null && !interviewTimeStr.isBlank()) {
+            try { interviewTime = java.time.LocalDateTime.parse(interviewTimeStr); } catch (Exception ignored) {}
+        }
+        if (!recruitmentService.updateFinalStatus(applicationId, finalStatus, interviewTime, interviewNote)) {
             throw new BusinessException("更新失败");
         }
         return Result.ok("状态更新成功");

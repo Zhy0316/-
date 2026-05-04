@@ -3,6 +3,8 @@ package com.example.archivemanagement.controller;
 import com.example.archivemanagement.common.BusinessException;
 import com.example.archivemanagement.common.Result;
 import com.example.archivemanagement.dto.StudentProfileDTO;
+import com.example.archivemanagement.entity.InfoEnterprise;
+import com.example.archivemanagement.service.EnterpriseService;
 import com.example.archivemanagement.service.InfoStudentService;
 import com.example.archivemanagement.util.FileUploadUtil;
 import jakarta.servlet.http.HttpServletRequest;
@@ -20,6 +22,7 @@ import java.util.Map;
 public class StudentController {
 
     private final InfoStudentService infoStudentService;
+    private final EnterpriseService enterpriseService;
 
     @GetMapping("/profile")
     public Result<StudentProfileDTO> getMyProfile(HttpServletRequest request) {
@@ -34,9 +37,20 @@ public class StudentController {
                                                 HttpServletRequest request) {
         Long callerId = (Long) request.getAttribute("userId");
         String roleKey = (String) request.getAttribute("roleKey");
+        
+        // 学生只能查看自己的档案
         if ("student".equals(roleKey) && !userId.equals(callerId)) {
             throw BusinessException.forbidden("无权查看其他学生的档案");
         }
+        
+        // 企业HR需要认证通过才能查看学生档案
+        if ("hr".equals(roleKey)) {
+            InfoEnterprise enterprise = enterpriseService.getByUserId(callerId);
+            if (enterprise == null || enterprise.getAuditStatus() != 1) {
+                throw BusinessException.forbidden("企业认证未通过,无法查看学生档案");
+            }
+        }
+        
         StudentProfileDTO profile = infoStudentService.getStudentProfile(userId);
         if (profile == null) throw BusinessException.notFound("档案不存在");
         return Result.ok(profile);
@@ -79,6 +93,9 @@ public class StudentController {
                                                     HttpServletRequest request) throws IOException {
         Long userId = (Long) request.getAttribute("userId");
         String filePath = FileUploadUtil.uploadFile(file, userId, "avatar");
+        StudentProfileDTO dto = new StudentProfileDTO();
+        dto.setAvatar(filePath);
+        infoStudentService.updateStudentProfile(userId, dto);
         return Result.ok(Map.of("filePath", filePath));
     }
 }

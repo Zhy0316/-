@@ -33,3 +33,7 @@ export const getApplicationsByRecruitment = (recruitmentId) =>
 /** 企业更新投递状态 */
 export const updateApplicationStatus = (applicationId, status) =>
   api.put('/job-application/status', { applicationId, status })
+
+/** 企业更新投递流程状态（细化版） */
+export const updateFinalStatus = (applicationId, finalStatus, interviewTime, interviewNote) =>
+  api.put('/job-application/final-status', { applicationId, finalStatus, interviewTime, interviewNote })
